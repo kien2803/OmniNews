@@ -486,7 +486,7 @@ function usePersistedViewMode(): [ViewMode, (v: ViewMode) => void] {
 // informational use only; the mock flow always rewrites the same row.
 const CONNECT_OPTIONS: ReadonlyArray<{ platform: Platform; label: string; mockOnly: boolean }> = [
   { platform: 'youtube', label: 'Add YouTube account', mockOnly: false },
-  { platform: 'tiktok', label: 'Add TikTok account', mockOnly: true },
+  { platform: 'tiktok', label: 'Add TikTok account', mockOnly: false },
   { platform: 'instagram', label: 'Add Instagram account', mockOnly: true },
   { platform: 'facebook', label: 'Add Facebook account', mockOnly: true },
 ];
