@@ -55,6 +55,11 @@ app.route('/api', quotaRoutes);
 // /api/health aliases the root /health — the SPA probes the API path.
 app.get('/api/health', healthCheck);
 
+// TikTok developer portal — domain ownership verification file.
+app.get('/tiktok9M3PxVDaU23GxdXB3RV1DcGeZRfoFRqS.txt', (c) =>
+  c.text('tiktok-developers-site-verification=9M3PxVDaU23GxdXB3RV1DcGeZRfoFRqS'),
+);
+
 // SPA fallback — assets layer returns 404 for unknown paths before the
 // worker runs, so serve index.html ourselves for non-API GETs.
 app.get('*', (c) => {
