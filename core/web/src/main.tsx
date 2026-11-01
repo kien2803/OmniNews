@@ -53,6 +53,9 @@ const RegisterPage = lazy(() =>
 const PrivacyPage = lazy(() =>
   import('./pages/PrivacyPage.js').then((m) => ({ default: m.PrivacyPage })),
 );
+const TermsPage = lazy(() =>
+  import('./pages/TermsPage.js').then((m) => ({ default: m.TermsPage })),
+);
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage.js').then((m) => ({ default: m.SettingsPage })),
 );
@@ -81,6 +84,7 @@ ReactDOM.createRoot(root).render(
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
                   <Route path="/privacy" element={<PrivacyPage />} />
+                  <Route path="/terms" element={<TermsPage />} />
                   <Route element={<ProtectedShell />}>
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/library" element={<LibraryPage />} />
