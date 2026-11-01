@@ -1,174 +1,66 @@
-# Social-Media-Account-Management
+# Omnicast
 
-Self-hosted tool to manage and auto-post videos across social platforms — YouTube, TikTok, Instagram, Facebook.
+SaaS social-media automation — upload video, schedule posts, publish lên YouTube / TikTok / Instagram / Facebook từ một nơi.
 
-## Features
+**Live**: https://omnicast.trunkynw2803.workers.dev
 
-- 👤 Multi-user authentication (register/login, JWT, per-user data isolation)
-- 🎬 Upload and manage videos
-- 🔗 Connect social accounts via OAuth (YouTube, TikTok, Instagram, Facebook)
-- 📅 Schedule posts with automatic publishing
-- 🔒 Encrypted token storage (AES-256-GCM)
-- 🔄 Automatic token refresh
-- 💾 Quota tracking and storage management
-- 🎨 Thumbnail generation with ffmpeg
-- 🧪 Full test coverage (234 tests)
+> Proprietary — all rights reserved. Không phải self-hosted product; codebase private.
 
-## Tech Stack
+## Stack
 
-- **Backend**: Fastify + SQLite
-- **Frontend**: React + Vite + Tailwind CSS
-- **Worker**: Background job scheduler
-- **Package Manager**: pnpm workspaces
-- **Language**: TypeScript
+| Tầng | Công nghệ |
+|---|---|
+| Frontend | React 18 · TypeScript · Vite · Tailwind · TanStack Query · Day.js |
+| Backend | Hono trên Cloudflare Workers |
+| Database | Cloudflare D1 (SQLite) |
+| Queue | Cloudflare Queues + DLQ + cron `*/1 * * * *` |
+| Storage | Cloudflare R2 (chưa bật — xem phần Blockers) |
+| Auth | JWT + bcrypt · token_version revocation · D1 rate limiting |
 
-## Quick Start
+## Cấu trúc
 
-```bash
-# Install dependencies
-pnpm install
-
-# Setup environment
-cp .env.example .env.local
-# Edit .env.local: Set TOKEN_ENCRYPTION_KEY (required)
-# For testing: keep USE_MOCK_GOOGLE=true (no credentials needed)
-# For production: Set USE_MOCK_GOOGLE=false and add Google OAuth credentials
-
-# Start development
-pnpm dev
+```
+core/
+  web/          # SPA — pages, components, dock nav
+  cloudflare/   # worker: routes, repos, cron, queue consumer, migrations
+  api/          # legacy Fastify API (không deploy — giữ cho tests/reference)
+  worker/       # legacy publishing worker (reference impl cho publisher port)
+  packages/
+    shared/     # row types dùng chung
+scripts/
+  backup-db.sh  # wrangler d1 export → backups/
+.github/workflows/ci.yml  # typecheck + lint + test + docker build
 ```
 
-Access the application:
-- **Web UI**: http://localhost:5173
-- **API**: http://localhost:3000
-- **Health check**: http://localhost:3000/health
-
-## Common Commands
-
-### Development
-```bash
-pnpm dev                    # Start API + Web + Worker
-pnpm core:dev:api          # API only
-pnpm core:dev:web          # Web only
-pnpm core:dev:worker       # Worker only
-```
-
-### Testing & Quality
-```bash
-pnpm test                   # Run all tests
-pnpm test:api              # API tests only
-pnpm typecheck             # TypeScript type checking
-pnpm lint                  # ESLint checking
-```
-
-### Build
-```bash
-pnpm core:build            # Build all core packages
-pnpm build                 # Build the web bundle only (production artifact)
-```
-
-## Production / Self-Hosted
-
-### Docker (recommended)
-
-One container runs everything — the API serves the built SPA and the
-publishing worker runs embedded in the same process (single DB writer, no
-cross-process file race).
-
-```bash
-# 1. Create .env with at least the two secrets (generate with:
-#    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
-TOKEN_ENCRYPTION_KEY=...
-JWT_SECRET=...
-WEB_ORIGIN=http://localhost:3000   # public origin users open
-
-# 2. Build & run
-docker compose up -d --build
-# or without compose:
-#   docker build -t social-auto .
-#   docker run -d -p 3000:3000 -v social-auto-data:/app/storage \
-#     --env-file .env social-auto
-```
-
-Open http://localhost:3000 — the landing page, app, API, and OAuth
-callbacks all live on the one port. SQLite DB + uploads persist in the
-`social-auto-data` volume (host path `./storage` works too:
-`-v ./storage:/app/storage`).
-
-### Bare metal / VM
+## Dev
 
 ```bash
 pnpm install
-pnpm build                        # produces core/web/dist
-EMBEDDED_WORKER=true pnpm start   # API + web + worker on :3000
+pnpm typecheck && pnpm lint && pnpm test
+cd core/cloudflare && ./node_modules/.bin/wrangler deploy
 ```
 
-Requirements: Node.js >= 22, pnpm 9, ffmpeg + ffprobe on PATH.
-`EMBEDDED_WORKER=true` is recommended for single-machine deploys; to scale
-the worker separately instead, run `pnpm -F @social-auto/api start` and
-`pnpm -F @social-auto/worker start` as two processes (note: both write to
-the same SQLite file — embedded mode avoids that race entirely).
-
-### Production checklist
-
-- Set `WEB_ORIGIN` to the public URL (also used for OAuth `redirect_uri`)
-- Set `*_REDIRECT_URI` values to `${WEB_ORIGIN}/auth/...` and register
-  them in each platform's developer console
-- Flip `USE_MOCK_*=false` and fill real credentials (see
-  [API_CREDENTIALS_GUIDE.md](./API_CREDENTIALS_GUIDE.md))
-- Put HTTPS in front (reverse proxy) before exposing publicly
-
-## Project Structure
+## Routes (SPA)
 
 ```
-Social-Media-Account-Management/
-├── core/
-│   ├── api/              # Fastify backend, OAuth routes, SQLite
-│   ├── web/              # React + Vite UI
-│   ├── worker/           # Scheduled-post poller
-│   └── packages/
-│       └── shared/       # Types, DB schema, crypto utilities
-└── storage/              # SQLite database + uploads (gitignored)
+/dashboard /library /posts/new /posts/calendar /posts/pipeline /posts/history
+/accounts /analytics /settings
+Legacy redirects: /upload /schedule /calendar /pipeline /history → /posts/*
 ```
 
-## Environment Variables
+## API chính
 
-Required variables in `.env.local`:
+`POST /auth/register` `POST /auth/login` (rate-limited) · `GET/PATCH/DELETE /auth/me`
+`POST /auth/change-password` (revokes old tokens) · `POST /auth/logout-all`
+`GET/POST /schedule` · `GET/PATCH/DELETE /schedule/:id` · `POST /schedule/:id/retry`
+`GET /schedule?status&account_id&from&to&q` · `GET /videos` · `GET /history`
+`GET /dashboard/counts` · `GET /analytics?account_id&from&to` · `GET /quota` (global + `mine`)
+`GET /health` (DB ping + worker heartbeat)
 
-```bash
-# Required for all modes
-TOKEN_ENCRYPTION_KEY=your-32-byte-hex-key
-JWT_SECRET=your-jwt-secret
+## Blockers (cần thao tác Cloudflare/developer console)
 
-# Mock mode (for testing - no credentials needed)
-USE_MOCK_GOOGLE=true
-USE_MOCK_PUBLISHERS=true
+- **R2 billing** — chưa enable → `POST /videos` + publisher port đang chờ
+- **TikTok credentials** — `TIKTOK_CLIENT_KEY/SECRET` (dev app + Content Posting review)
+- **Meta credentials** — `META_APP_ID/SECRET` (Business app + Advanced Access)
 
-# Production mode (requires Google OAuth credentials)
-USE_MOCK_GOOGLE=false
-USE_MOCK_PUBLISHERS=false
-GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback
-```
-
-See [`.env.example`](./.env.example) for full configuration options.
-
-## API Credentials
-
-The app currently runs in **mock mode** (no real credentials needed). To use real social media platforms, see [API_CREDENTIALS_GUIDE.md](./API_CREDENTIALS_GUIDE.md) for setup instructions for:
-- YouTube (Google OAuth)
-- TikTok
-- Facebook & Instagram (Meta)
-
-## License
-
-Proprietary — Copyright (c) 2026 Phan Trung Kien. All rights reserved.
-
-## Security
-
-This project follows security best practices:
-- OAuth tokens encrypted with AES-256-GCM
-- Environment variables for sensitive configuration
-- `.gitignore` excludes sensitive files
-- `.gitignore` excludes secrets and `.env*` files
+Chi tiết tính năng: [FEATURES.md](FEATURES.md)
