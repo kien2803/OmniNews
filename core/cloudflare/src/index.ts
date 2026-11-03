@@ -5,6 +5,8 @@ import { oauthRoutes } from './routes/oauth';
 import { accountRoutes } from './routes/accounts';
 import { scheduleRoutes } from './routes/schedule';
 import { quotaRoutes } from './routes/quota';
+import { commentsRoutes } from './routes/comments';
+import { pollComments } from './lib/commentPoll';
 import { ScheduledPostsRepo } from './repos/scheduledPosts';
 import { MAX_PUBLISH_ATTEMPTS } from './lib/publishErrors';
 import type { Env, PublishJob } from './env';
@@ -52,6 +54,7 @@ app.route('/api', oauthRoutes); // SPA calls /api/* same-origin
 app.route('/api', accountRoutes);
 app.route('/api', scheduleRoutes);
 app.route('/api', quotaRoutes);
+app.route('/api', commentsRoutes);
 // /api/health aliases the root /health — the SPA probes the API path.
 app.get('/api/health', healthCheck);
 
@@ -94,6 +97,7 @@ export default {
       .run<{ id: string }>();
     const jobs = (results ?? []).map((r) => ({ postId: r.id, attempt: 0 }));
     if (jobs.length) ctx.waitUntil(env.PUBLISH_QUEUE.sendBatch(jobs.map((body) => ({ body }))));
+    ctx.waitUntil(pollComments(env));
   },
 
   /** Queue consumer: publish claimed posts. Retries → queue retry; DLQ → dead. */

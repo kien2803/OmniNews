@@ -53,6 +53,9 @@ const RegisterPage = lazy(() =>
 const PrivacyPage = lazy(() =>
   import('./pages/PrivacyPage.js').then((m) => ({ default: m.PrivacyPage })),
 );
+const CommentsPage = lazy(() =>
+  import('./pages/CommentsPage.js').then((m) => ({ default: m.CommentsPage })),
+);
 const TermsPage = lazy(() =>
   import('./pages/TermsPage.js').then((m) => ({ default: m.TermsPage })),
 );
@@ -93,6 +96,7 @@ ReactDOM.createRoot(root).render(
                     <Route path="/posts/calendar" element={<CalendarPage />} />
                     <Route path="/posts/pipeline" element={<PipelinePage />} />
                     <Route path="/posts/history" element={<HistoryPage />} />
+                    <Route path="/comments" element={<CommentsPage />} />
                     {/* legacy redirects */}
                     <Route path="/upload" element={<Navigate to="/posts/new" replace />} />
                     <Route path="/schedule" element={<Navigate to="/posts/calendar" replace />} />

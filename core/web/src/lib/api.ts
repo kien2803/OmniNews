@@ -90,6 +90,23 @@ export interface AccountRow {
   created_at: number;
   metadata: AccountMetadata;
   channel: AccountChannelSnapshot;
+  auto_reply_enabled?: number;
+  auto_reply_template?: string | null;
+}
+
+export interface CommentRow {
+  id: string;
+  account_id: string;
+  post_id: string | null;
+  external_post_id: string;
+  platform: Platform;
+  author_name: string;
+  text: string;
+  commented_at: number;
+  reply_text: string | null;
+  reply_status: 'none' | 'auto' | 'manual' | 'failed';
+  replied_at: number | null;
+  account_display_name?: string;
 }
 
 export interface AccountListFilter {
@@ -283,6 +300,21 @@ export const api = {
   health: () => req<HealthResponse>('/health'),
   quota: () => req<QuotaResponse>('/quota'),
   youtubeQuota: () => req<YouTubeQuotaResponse>('/quota/youtube'),
+  listComments: (f?: { account_id?: string; reply_status?: string; q?: string }) => {
+    const p = new URLSearchParams();
+    if (f?.account_id) p.set('account_id', f.account_id);
+    if (f?.reply_status) p.set('reply_status', f.reply_status);
+    if (f?.q) p.set('q', f.q);
+    const qs = p.toString();
+    return req<{ comments: CommentRow[] }>(`/comments${qs ? `?${qs}` : ''}`);
+  },
+  replyComment: (id: string, text: string) =>
+    req<{ ok: true }>(`/comments/${id}/reply`, { method: 'POST', body: JSON.stringify({ text }) }),
+  setAutoReply: (accountId: string, enabled: boolean, template: string) =>
+    req<{ ok: true }>(`/comments/auto-reply/${accountId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled, template }),
+    }),
   getUploadProgress: (videoId: string) => req<UploadProgress>(`/videos/${videoId}/progress`),
   uploadVideoBulk: (files: FileList, onProgress?: (current: number, total: number) => void) =>
     uploadFilesBulk('/videos/bulk', files, onProgress),

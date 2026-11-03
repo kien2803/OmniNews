@@ -5,6 +5,7 @@ const TABS = [
   { to: '/posts/calendar', label: 'Calendar' },
   { to: '/posts/pipeline', label: 'Pipeline' },
   { to: '/posts/history', label: 'History' },
+  { to: '/comments', label: 'Comments' },
 ];
 
 export function PostsNav() {
