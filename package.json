@@ -5,13 +5,13 @@
   "type": "module",
   "description": "OmniNews \u2014 schedule and publish articles to Facebook, Threads, Reddit and X.",
   "scripts": {
-    "dev": "pnpm -F @social-auto/web dev",
-    "build": "pnpm -F @social-auto/web build",
+    "dev": "pnpm -F @omninews/web dev",
+    "build": "pnpm -F @omninews/web build",
     "typecheck": "pnpm -r --if-present run typecheck",
     "lint": "pnpm -r --if-present run lint",
     "test": "pnpm -r --if-present run test",
-    "cf:dev": "pnpm -F @social-auto/cloudflare dev",
-    "cf:deploy": "pnpm -F @social-auto/cloudflare deploy"
+    "cf:dev": "pnpm -F @omninews/cloudflare dev",
+    "cf:deploy": "pnpm -F @omninews/cloudflare deploy"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

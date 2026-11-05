@@ -1,5 +1,5 @@
 {
-  "name": "@social-auto/cloudflare",
+  "name": "@omninews/cloudflare",
   "version": "0.1.0",
   "private": true,
   "type": "module",
