@@ -4,7 +4,7 @@ import {
   openOAuthPopup,
   extractOAuthResultFromMessage,
 } from './oAuthPopup.js';
-import { POPUP_MESSAGE_TYPE } from '@social-auto/shared';
+import { POPUP_MESSAGE_TYPE } from './oAuthPopup.js';
 
 describe('buildOAuthStartUrl', () => {
   it('appends ?popup=1 to /api/auth/<platform>/start', () => {

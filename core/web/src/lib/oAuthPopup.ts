@@ -10,12 +10,29 @@
  * navigation so the connect flow still completes — at the cost of a page
  * reload, which is exactly what the popup-mode was meant to avoid.
  */
-import {
-  POPUP_MESSAGE_TYPE,
-  POPUP_QUERY,
-  type OAuthPopupMessage,
-  type OAuthPopupResult,
-} from '@social-auto/shared';
+/** Literal postMessage `type` field shared by the OAuth popup-close page
+ *  and the SPA listener — kept local since @social-auto/shared was removed
+ *  with the legacy stack. */
+export const POPUP_MESSAGE_TYPE = 'social-auto:oauth-result';
+
+/** Query string appended to /auth/<platform>/start to opt into popup mode. */
+export const POPUP_QUERY = 'popup';
+
+/** Cookie name the API sets when popup mode is active. */
+export const POPUP_COOKIE = 'oauth_popup';
+
+export interface OAuthPopupResult {
+  connected?: string;
+  account_id?: string;
+  account_ids?: string[];
+  error?: string;
+  detail?: string;
+}
+
+export interface OAuthPopupMessage {
+  type: typeof POPUP_MESSAGE_TYPE;
+  payload: OAuthPopupResult;
+}
 
 
 export interface OpenOAuthPopupOptions {

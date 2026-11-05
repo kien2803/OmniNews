@@ -23,10 +23,6 @@ SaaS social-media automation — viết bài một lần, schedule, publish lên
 core/
   web/          # SPA — pages, components, dock nav
   cloudflare/   # worker: routes, repos, cron, queue consumer, migrations
-  api/          # legacy Fastify API (không deploy — giữ cho tests/reference)
-  worker/       # legacy publishing worker (reference impl cho publisher port)
-  packages/
-    shared/     # row types dùng chung
 scripts/
   backup-db.sh  # wrangler d1 export → backups/
 .github/workflows/ci.yml  # typecheck + lint + test + docker build
