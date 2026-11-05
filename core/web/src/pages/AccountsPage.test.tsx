@@ -24,7 +24,7 @@ import { AccountsPage } from './AccountsPage.js';
 
 interface AccountOverrides {
   id?: string;
-  platform?: 'youtube' | 'tiktok' | 'instagram' | 'facebook';
+  platform?: 'facebook' | 'threads' | 'reddit' | 'x';
   external_id?: string;
   display_name?: string;
   status?: 'active' | 'expired' | 'revoked';
@@ -37,7 +37,7 @@ interface AccountOverrides {
 function makeAccount(over: AccountOverrides = {}) {
   return {
     id: over.id ?? 'acc_1',
-    platform: over.platform ?? 'youtube',
+    platform: over.platform ?? 'facebook',
     external_id: over.external_id ?? 'UC_abcdef123456',
     display_name: over.display_name ?? 'Example Channel',
     status: over.status ?? 'active',
@@ -173,7 +173,7 @@ describe('AccountsPage — filter behavior', () => {
       makeAccount({
         id: 'a2',
         display_name: 'Beta',
-        platform: 'tiktok',
+        platform: 'reddit',
         status: 'expired',
         content_category: 'MEME',
         language_code: 'VIETNAMESE',
@@ -209,7 +209,7 @@ describe('AccountsPage — filter behavior', () => {
 
     expect(document.body.textContent).toContain('Alpha');
     expect(document.body.textContent).toContain('Beta');
-    expect(document.body.textContent).toContain('youtube');
+    expect(document.body.textContent).toContain('facebook');
     expect(document.body.textContent).toContain('expired');
 
     unmount(h);
@@ -219,16 +219,16 @@ describe('AccountsPage — filter behavior', () => {
 describe('AccountsPage — multi-account support', () => {
   it('shows a per-platform count badge in the Add account menu', async () => {
     const accounts = [
-      makeAccount({ id: 'yt1', platform: 'youtube', display_name: 'YT One' }),
-      makeAccount({ id: 'yt2', platform: 'youtube', display_name: 'YT Two' }),
-      makeAccount({ id: 'tt1', platform: 'tiktok', display_name: 'TT One' }),
+      makeAccount({ id: 'fb1', platform: 'facebook', display_name: 'FB One' }),
+      makeAccount({ id: 'fb2', platform: 'facebook', display_name: 'FB Two' }),
+      makeAccount({ id: 'rd1', platform: 'reddit', display_name: 'RD One' }),
     ];
     const fetchMock = mockList({ accounts });
     vi.stubGlobal('fetch', fetchMock);
 
     const h = mount(<AccountsPage />);
     // Wait for the initial GET to populate the list.
-    for (let i = 0; i < 50 && !document.body.textContent?.includes('YT One'); i++) {
+    for (let i = 0; i < 50 && !document.body.textContent?.includes('FB One'); i++) {
       await flush(20);
     }
 
@@ -241,35 +241,35 @@ describe('AccountsPage — multi-account support', () => {
     });
     await flush(10);
 
-    // Find the menu items and their badge text. With 2 YouTube and 1 TikTok,
-    // the YouTube menu item should carry a "2" badge, TikTok "1".
-    const youtubeItem = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
-      (el) => el.textContent?.includes('YouTube'),
+    // Find the menu items and their badge text. With 2 Facebook and 1 Reddit,
+    // the Facebook menu item should carry a "2" badge, Reddit "1".
+    const facebookItem = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
+      (el) => el.textContent?.includes('Facebook'),
     );
-    const tiktokItem = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
-      (el) => el.textContent?.includes('TikTok'),
+    const redditItem = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
+      (el) => el.textContent?.includes('Reddit'),
     );
-    expect(youtubeItem).toBeTruthy();
-    expect(tiktokItem).toBeTruthy();
-    expect(youtubeItem!.textContent).toMatch(/2/);
-    expect(tiktokItem!.textContent).toMatch(/1/);
+    expect(facebookItem).toBeTruthy();
+    expect(redditItem).toBeTruthy();
+    expect(facebookItem!.textContent).toMatch(/2/);
+    expect(redditItem!.textContent).toMatch(/1/);
 
     unmount(h);
   });
 
   it('renders the multi-account menu items even when an account already exists', async () => {
     // The menu must not disable a platform just because an account is
-    // already connected. The user clicks "Add YouTube account" again to
-    // connect another channel. The actual OAuth navigation is a
+    // already connected. The user clicks "Add Facebook page" again to
+    // connect another page. The actual OAuth navigation is a
     // `window.location.assign` call that jsdom cannot intercept without
     // non-configurable-property hacks, so we just assert the menu item
     // is present and clickable.
-    const accounts = [makeAccount({ id: 'yt1', platform: 'youtube', display_name: 'YT One' })];
+    const accounts = [makeAccount({ id: 'fb1', platform: 'facebook', display_name: 'FB One' })];
     const fetchMock = mockList({ accounts });
     vi.stubGlobal('fetch', fetchMock);
 
     const h = mount(<AccountsPage />);
-    for (let i = 0; i < 50 && !document.body.textContent?.includes('YT One'); i++) {
+    for (let i = 0; i < 50 && !document.body.textContent?.includes('FB One'); i++) {
       await flush(20);
     }
     const trigger = Array.from(document.querySelectorAll('button')).find(
@@ -279,12 +279,12 @@ describe('AccountsPage — multi-account support', () => {
       trigger!.click();
     });
     await flush(10);
-    const youtubeItem = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
-      (el) => el.textContent?.includes('Add YouTube account'),
+    const facebookItem = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
+      (el) => el.textContent?.includes('Add Facebook page'),
     ) as HTMLButtonElement | undefined;
-    expect(youtubeItem).toBeTruthy();
-    // The button is enabled even though a YouTube account already exists.
-    expect(youtubeItem!.disabled).toBe(false);
+    expect(facebookItem).toBeTruthy();
+    // The button is enabled even though a Facebook account already exists.
+    expect(facebookItem!.disabled).toBe(false);
     unmount(h);
   });
 });

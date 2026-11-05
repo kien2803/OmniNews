@@ -3,23 +3,23 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import {
   IconFacebook,
-  IconInstagram,
-  IconTikTok,
+  IconX,
+  IconReddit,
   IconUpload,
-  IconYouTube,
+  IconThreads,
 } from '../components/icons.js';
 
 const STATIONS = [
-  { name: 'YouTube', freq: 'CH-01', scope: 'upload + read', Icon: IconYouTube },
-  { name: 'TikTok', freq: 'CH-02', scope: 'video.publish', Icon: IconTikTok },
-  { name: 'Instagram', freq: 'CH-03', scope: 'content_publish', Icon: IconInstagram },
+  { name: 'YouTube', freq: 'CH-01', scope: 'upload + read', Icon: IconFacebook },
+  { name: 'Threads', freq: 'CH-02', scope: 'threads_content_publish', Icon: IconThreads },
+  { name: 'Instagram', freq: 'CH-03', scope: 'content_publish', Icon: IconX },
   { name: 'Facebook', freq: 'CH-04', scope: 'pages_manage_posts', Icon: IconFacebook },
 ] as const;
 
 const SIGNAL = [
-  { time: '09:00', event: 'video received — 148 MB, checksummed, deduplicated' },
+  { time: '09:00', event: 'article received — 2,400 chars, 3 images attached' },
   { time: '09:00', event: 'thumbnail rendered, duration probed' },
-  { time: '18:30', event: 'broadcast opens — CH-01 YouTube, CH-03 Instagram' },
+  { time: '18:30', event: 'broadcast opens — CH-01 Facebook, CH-02 Threads' },
   { time: '18:31', event: 'published · CH-01 OK, CH-03 retry queued (rate limit)' },
   { time: '18:46', event: 'retry succeeds · CH-03 OK — broadcast complete' },
 ] as const;
@@ -31,9 +31,9 @@ const MANUAL_TEMPO = [0, 1.85, 4.1, 6.3] as const;
 // (160,182) up to each platform receiver. x/y are the endpoints in %, where
 // the HTML nodes sit — they stay aligned since the svg stretches with them.
 const FANOUT = [
-  { d: 'M160 182 C 95 140 55 95 40 44', x: 12.5, y: 22, name: 'YouTube', Icon: IconYouTube },
-  { d: 'M160 182 C 132 122 120 72 120 30', x: 37.5, y: 15, name: 'TikTok', Icon: IconTikTok },
-  { d: 'M160 182 C 188 122 200 72 200 30', x: 62.5, y: 15, name: 'Instagram', Icon: IconInstagram },
+  { d: 'M160 182 C 95 140 55 95 40 44', x: 12.5, y: 22, name: 'Facebook', Icon: IconFacebook },
+  { d: 'M160 182 C 132 122 120 72 120 30', x: 37.5, y: 15, name: 'TikTok', Icon: IconReddit },
+  { d: 'M160 182 C 188 122 200 72 200 30', x: 62.5, y: 15, name: 'Instagram', Icon: IconX },
   { d: 'M160 182 C 225 140 265 95 280 44', x: 87.5, y: 22, name: 'Facebook', Icon: IconFacebook },
 ] as const;
 
@@ -193,7 +193,7 @@ export function LandingPage() {
               <span className="absolute inset-0 animate-ping rounded-full bg-brand-500 opacity-75" />
               <span className="relative h-1.5 w-1.5 rounded-full bg-brand-500" />
             </span>
-            on air · multi-platform video scheduler
+            on air · multi-platform post scheduler
           </p>
           <h1
             className="mt-4 max-w-3xl animate-hero-in font-display text-4xl font-semibold leading-[1.06] tracking-tight md:text-6xl"
@@ -205,8 +205,8 @@ export function LandingPage() {
             className="mt-6 max-w-xl animate-hero-in text-base leading-relaxed text-ink-muted dark:text-stone-400"
             style={{ animationDelay: '240ms' }}
           >
-            Omnicast takes a single video and transmits it to YouTube, TikTok,
-            Instagram and Facebook at the times you set — retries, quotas and
+            Omnicast takes a single article and transmits it to Facebook,
+            Threads, Reddit and X at the times you set — retries, quotas and
             history handled by the station, not by you.
           </p>
           <div
@@ -281,7 +281,7 @@ export function LandingPage() {
               the relay → the broadcast
             </p>
             <h2 className="mt-3 max-w-2xl font-display text-2xl font-semibold tracking-tight md:text-3xl">
-              Same video, four uploads — or one click.
+              Same article, four posts — or one click.
             </h2>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink-muted dark:text-stone-400">
               Cross-posting by hand means signing in and uploading to every
@@ -341,7 +341,7 @@ export function LandingPage() {
                 </figcaption>
                 {/* transmission map — packets ride the curves to every
                     platform at once; receivers flash as each packet lands */}
-                <div className="relative mt-6 h-60" role="img" aria-label="One upload relayed to YouTube, TikTok, Instagram and Facebook at the same time">
+                <div className="relative mt-6 h-60" role="img" aria-label="One article relayed to Facebook, Threads, Reddit and X at the same time">
                   <svg
                     className="absolute inset-0 h-full w-full text-stone-300 dark:text-stone-600"
                     viewBox="0 0 320 200"
@@ -465,7 +465,7 @@ export function LandingPage() {
       )}
 
       <footer className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 font-mono text-xs text-ink-subtle dark:text-stone-500">
-        <span>Omnicast — video scheduling for YouTube, TikTok, Instagram &amp; Facebook</span>
+        <span>Omnicast — post scheduling for Facebook, Threads, Reddit &amp; X</span>
         <Link to="/privacy" className="underline underline-offset-2 hover:text-ink dark:hover:text-stone-300">Privacy</Link>
       </footer>
     </div>

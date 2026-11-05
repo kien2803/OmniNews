@@ -11,6 +11,7 @@ import {
   stageOAuthTokenCookie,
   type AccountListResponse,
   type AccountRow,
+  type Platform,
   type UpdateAccountInput,
 } from '../lib/api.js';
 import { Card, CardBody } from '../components/ui/Card.js';
@@ -25,7 +26,6 @@ import { useToast } from '../components/ui/Toast.js';
 import { track, warnValidation } from '../lib/telemetry.js';
 import { extractOAuthResultFromMessage } from '../lib/oAuthPopup.js';
 import { safeHref } from '../lib/safeHref.js';
-import type { Platform } from '@social-auto/shared';
 
 /**
  * Connect a platform via OAuth. We deliberately use full-tab navigation
@@ -77,15 +77,11 @@ function PlatformAvatar({
   const safe = avatarUrl ? safeHref(avatarUrl) : undefined;
   const letter = platform.charAt(0).toUpperCase() || '?';
   const color =
-    platform === 'youtube'
-      ? 'bg-red-500 text-white'
-      : platform === 'tiktok'
-        ? 'bg-stone-900 text-pink-300'
-        : platform === 'instagram'
-          ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white'
-          : platform === 'facebook'
-            ? 'bg-blue-700 text-white'
-            : 'bg-blue-600 text-white';
+    platform === 'facebook'
+      ? 'bg-blue-700 text-white'
+      : platform === 'reddit'
+        ? 'bg-orange-600 text-white'
+        : 'bg-stone-900 text-white';
   if (safe) {
     return (
       <img
@@ -356,7 +352,7 @@ function AccountTable({
             <th className="px-3 py-2 font-medium">Channel</th>
             <th className="px-3 py-2 font-medium">Status</th>
             <th className="px-3 py-2 font-medium text-right">Subs</th>
-            <th className="px-3 py-2 font-medium text-right">Videos</th>
+            <th className="px-3 py-2 font-medium text-right">Posts</th>
             <th className="px-3 py-2 font-medium">Last sync</th>
             <th className="px-3 py-2 font-medium text-right">Actions</th>
           </tr>
@@ -496,10 +492,10 @@ function usePersistedViewMode(): [ViewMode, (v: ViewMode) => void] {
 // back to a deterministic code-based mock, so the (N) count there is for
 // informational use only; the mock flow always rewrites the same row.
 const CONNECT_OPTIONS: ReadonlyArray<{ platform: Platform; label: string; mockOnly: boolean }> = [
-  { platform: 'youtube', label: 'Add YouTube account', mockOnly: false },
-  { platform: 'tiktok', label: 'Add TikTok account', mockOnly: false },
-  { platform: 'instagram', label: 'Add Instagram account', mockOnly: true },
-  { platform: 'facebook', label: 'Add Facebook account', mockOnly: true },
+  { platform: 'facebook', label: 'Add Facebook page', mockOnly: false },
+  { platform: 'threads', label: 'Add Threads account', mockOnly: false },
+  { platform: 'reddit', label: 'Add Reddit account', mockOnly: false },
+  { platform: 'x', label: 'Add X account', mockOnly: false },
 ];
 
 function ConnectMenu({
@@ -605,13 +601,11 @@ export function AccountsPage() {
         });
         const firstId = accountIds[0];
         if (firstId) {
-          // Auto-sync channel stats so the row shows subscribers / videos
-          // without a separate click. Skip silently for non-YouTube —
-          // the sync endpoint returns 400 sync_only_youtube for those.
-          if (platform === 'youtube') {
-            void (async (): Promise<void> => {
+          // Auto-sync the account's recent posts so the library drawer
+          // isn't empty on first open. Failures are non-fatal.
+          void (async (): Promise<void> => {
               try {
-                await api.syncAccount(firstId);
+                await api.syncChannelPosts(firstId);
                 void qc.invalidateQueries({ queryKey: ['accounts'] });
                 void qc.invalidateQueries({ queryKey: ['accounts-list'] });
               } catch {
@@ -620,7 +614,6 @@ export function AccountsPage() {
                 // the row (when we add that back) or the next list refetch.
               }
             })();
-          }
           // Wait one tick so the new row is mounted before we scroll to it.
           // Bounded retry so a missing row never throws.
           const scrollTo = (attempt: number): void => {
@@ -700,7 +693,7 @@ export function AccountsPage() {
       if (inField) return;
       if (e.key === 'n') {
         e.preventDefault();
-        handleConnect('youtube');
+        handleConnect('facebook');
       }
     };
     window.addEventListener('keydown', onKey);
@@ -804,9 +797,9 @@ export function AccountsPage() {
         <EmptyState
           icon={<span>◉</span>}
           title="No accounts connected yet"
-          description="Click Add account above and pick a platform to walk through OAuth. You can connect more than one YouTube channel — each one becomes its own row."
+          description="Click Add account above and pick a platform to walk through OAuth. Facebook connects every Page you manage — each one becomes its own row."
           action={
-            <Button size="sm" onClick={() => handleConnect('youtube')}>
+            <Button size="sm" onClick={() => handleConnect('facebook')}>
               Add YouTube account
             </Button>
           }

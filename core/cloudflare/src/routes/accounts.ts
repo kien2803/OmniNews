@@ -1,16 +1,15 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { AccountsRepo } from '../repos/accounts';
-import { ChannelVideosRepo } from '../repos/channelVideos';
+import { ChannelPostsRepo } from '../repos/channelPosts';
 import { ScheduledPostsRepo } from '../repos/scheduledPosts';
 import { bearerUserId } from '../lib/auth';
-import { getMyChannel, listRecentVideos } from '../lib/google';
 import { usableAccessToken } from '../lib/tokens';
-import { listChannelVideos } from '../lib/channelVideos';
+import { listChannelPosts } from '../lib/channelPosts';
 import type { AccountRow, Platform, AccountStatus } from '../repos/types';
 import type { Env } from '../env';
 
-const PLATFORMS: readonly Platform[] = ['youtube', 'tiktok', 'instagram', 'facebook'];
+const PLATFORMS: readonly Platform[] = ['facebook', 'threads', 'reddit', 'x'];
 const STATUSES: readonly AccountStatus[] = ['active', 'expired', 'revoked'];
 const LANGUAGE_CODES = ['ENGLISH', 'VIETNAMESE'] as const;
 
@@ -171,23 +170,22 @@ accountRoutes.get('/accounts/:id/stats', async (c) => {
   return c.json({ account_id: r.row.id, by_status: byStatus, total, last_published_at: lastPublished });
 });
 
-// Per-account video library: the synced copy of videos published on this
-// platform account (YouTube uploads+Shorts, TikTok videos, FB Reels, IG
-// Reels). Populated by POST .../videos/sync — the GET only reads the table,
-// so the list is empty until the first sync runs.
-accountRoutes.get('/accounts/:id/videos', async (c) => {
+// Per-account post library: the synced copy of posts published on this
+// platform account (FB feed posts, Threads, Reddit submissions, X tweets).
+// Populated by POST .../posts/sync — the GET only reads the table, so the
+// list is empty until the first sync runs.
+accountRoutes.get('/accounts/:id/posts', async (c) => {
   const r = await ownedAccount(c, c.req.param('id'));
   if ('error' in r) return r.error;
-  const lib = new ChannelVideosRepo(c.env.DB);
+  const lib = new ChannelPostsRepo(c.env.DB);
   const rows = await lib.listByAccount(r.row.id);
   const syncedAt = rows.length ? Math.max(...rows.map((v) => v.synced_at)) : null;
   return c.json({
-    videos: rows.map((v) => ({
+    posts: rows.map((v) => ({
       id: v.external_id,
       title: v.title,
       thumbnail_url: v.thumbnail_url,
       published_at: v.published_at,
-      duration_sec: v.duration_sec,
       view_count: v.view_count,
       like_count: v.like_count,
       comment_count: v.comment_count,
@@ -197,13 +195,13 @@ accountRoutes.get('/accounts/:id/videos', async (c) => {
   });
 });
 
-// Manual sync: pull the account's published videos from the platform and
-// upsert them into channel_videos. Items the platform no longer returns
-// (deleted/privated) are pruned by replaceForAccount.
-accountRoutes.post('/accounts/:id/videos/sync', async (c) => {
+// Manual sync: pull the account's published posts from the platform and
+// upsert them into channel_posts. Items the platform no longer returns
+// (deleted/removed) are pruned by replaceForAccount.
+accountRoutes.post('/accounts/:id/posts/sync', async (c) => {
   const r = await ownedAccount(c, c.req.param('id'));
   if ('error' in r) return r.error;
-  if (!r.row.external_id && r.row.platform !== 'tiktok') {
+  if (!r.row.external_id) {
     return c.json({ error: 'account_missing_external_id' }, 400);
   }
   let token: string;
@@ -214,59 +212,13 @@ accountRoutes.post('/accounts/:id/videos/sync', async (c) => {
   }
   let items;
   try {
-    items = await listChannelVideos(c.env, r.row, token);
+    items = await listChannelPosts(c.env, r.row, token);
   } catch (e) {
-    console.error('channel videos sync failed', e);
-    return c.json({ error: 'videos_fetch_failed' }, 502);
+    console.error('channel posts sync failed', e);
+    return c.json({ error: 'posts_fetch_failed' }, 502);
   }
-  const lib = new ChannelVideosRepo(c.env.DB);
+  const lib = new ChannelPostsRepo(c.env.DB);
   const syncedAt = Date.now();
   await lib.replaceForAccount(r.row, items, syncedAt);
   return c.json({ synced: items.length, synced_at: syncedAt });
-});
-
-accountRoutes.post('/accounts/:id/sync', async (c) => {
-  const r = await ownedAccount(c, c.req.param('id'));
-  if ('error' in r) return r.error;
-  if (r.row.platform !== 'youtube') return c.json({ error: 'sync_only_youtube' }, 400);
-  const accounts = new AccountsRepo(c.env.DB);
-  let token: string;
-  try {
-    token = await usableAccessToken(c.env, accounts, r.row);
-  } catch {
-    return c.json({ error: 'token_refresh_failed' }, 401);
-  }
-  let info;
-  try {
-    info = await getMyChannel(token);
-  } catch {
-    return c.json({ error: 'google_api_error' }, 502);
-  }
-  const snapshot = {
-    channel_handle: info.handle ?? '',
-    avatar_url: info.thumbnail_url ?? '',
-    subscribers: info.subscribers,
-    views: info.views,
-    video_count: info.video_count,
-    like_count: null as number | null,
-    avg_watch_seconds: null,
-    drop_off_pct: null,
-    last_sync_at: info.snapshot_at,
-  };
-  // Sum likes over recent uploads — the Data API has no channel-wide
-  // like_count. Non-fatal if this call fails (quota etc.).
-  if (r.row.external_id) {
-    try {
-      const videos = await listRecentVideos(token, r.row.external_id);
-      const summed = videos.reduce((acc, v) => acc + (v.like_count ?? 0), 0);
-      if (videos.length > 0) snapshot.like_count = summed;
-    } catch {
-      /* non-fatal */
-    }
-  }
-  await accounts.updateChannelSnapshot(r.row.id, snapshot);
-  return c.json({
-    id: r.row.id,
-    channel: { ...snapshot, snapshot_at: snapshot.last_sync_at },
-  });
 });

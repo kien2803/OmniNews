@@ -1,21 +1,21 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { api, type VideoWire } from '../lib/api.js';
+import { api, type ArticleInput, type ArticleWire } from '../lib/api.js';
 import { useAccounts, type AccountInfo } from '../lib/accounts.js';
 import { useToast } from '../components/ui/Toast.js';
 import { Button } from '../components/ui/Button.js';
 import { Field, Select, TextArea } from '../components/ui/Field.js';
 import { Skeleton } from '../components/ui/Skeleton.js';
-import { IconYouTube, IconTikTok, IconInstagram, IconFacebook } from '../components/icons.js';
+import { IconFacebook, IconThreads, IconReddit, IconX } from '../components/icons.js';
 import type { ComponentType, SVGProps } from 'react';
 
 const PLATFORM_ICON: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
-  youtube: IconYouTube,
-  tiktok: IconTikTok,
-  instagram: IconInstagram,
   facebook: IconFacebook,
+  threads: IconThreads,
+  reddit: IconReddit,
+  x: IconX,
 };
 
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
@@ -35,25 +35,28 @@ export function ComposePage() {
   const toast = useToast();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const fileInput = useRef<HTMLInputElement>(null);
 
-  const videos = useQuery({ queryKey: ['videos'], queryFn: () => api.listVideos() });
+  const articles = useQuery({ queryKey: ['articles'], queryFn: () => api.listArticles() });
   const accountsQ = useAccounts();
   const accounts = accountsQ.data ?? [];
 
-  const [videoId, setVideoId] = useState(params.get('video') ?? '');
+  const [articleId, setArticleId] = useState(params.get('article') ?? '');
+  const [newArticle, setNewArticle] = useState(false);
+  const [nTitle, setNTitle] = useState('');
+  const [nBody, setNBody] = useState('');
+  const [nLink, setNLink] = useState('');
+  const [nImages, setNImages] = useState('');
   const [accountIds, setAccountIds] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('omnicast.lastAccounts') ?? '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem('omninews.lastAccounts') ?? '[]'); } catch { return []; }
   });
   const [caption, setCaption] = useState('');
   const [perPlatform, setPerPlatform] = useState(false);
   const [perCaptions, setPerCaptions] = useState<Record<string, string>>({});
   const [time, setTime] = useState(dayjs().add(1, 'hour').minute(0).format('YYYY-MM-DDTHH:mm'));
-  const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('private');
+  const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [notes, setNotes] = useState('');
-  const [uploading, setUploading] = useState<number | null>(null);
 
-  const video: VideoWire | undefined = videos.data?.videos.find((v) => v.id === videoId);
+  const article: ArticleWire | undefined = articles.data?.articles.find((a) => a.id === articleId);
   const activeAccounts = accounts.filter((a) => a.status === 'active');
   const byPlatform = useMemo(() => {
     const m = new Map<string, AccountInfo[]>();
@@ -65,25 +68,44 @@ export function ComposePage() {
   const toggleAccount = (id: string) =>
     setAccountIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
+  const creatingNew = newArticle || articleId === 'new';
+  const newArticleValid = !!(nTitle.trim() || nBody.trim() || nLink.trim() || nImages.trim());
+
   const errors: string[] = [];
-  if (!videoId) errors.push('Select a video');
+  if (!articleId && !creatingNew) errors.push('Select or write an article');
+  if (creatingNew && !newArticleValid) errors.push('Article needs a title, body, link or image');
   if (!accountIds.length) errors.push('Select at least one account');
-  if (!caption.trim()) errors.push('Caption is required');
+
+  const createArticle = useMutation({
+    mutationFn: (input: ArticleInput) => api.createArticle(input),
+  });
 
   const submit = useMutation({
-    mutationFn: (draft: boolean) =>
-      api.createSchedule({
-        video_id: videoId,
+    mutationFn: async (draft: boolean) => {
+      let id = articleId;
+      if (creatingNew) {
+        const created = await createArticle.mutateAsync({
+          title: nTitle.trim(),
+          body: nBody.trim(),
+          link_url: nLink.trim(),
+          images: nImages.split('\n').map((u) => u.trim()).filter(Boolean),
+        });
+        id = created.article.id;
+        void qc.invalidateQueries({ queryKey: ['articles'] });
+      }
+      return api.createSchedule({
+        article_id: id,
         account_ids: accountIds,
-        caption,
+        caption: caption.trim() || undefined,
         per_platform_caption: perPlatform ? perCaptions : undefined,
         scheduled_at: new Date(time).getTime(),
         visibility,
         draft,
         notes: notes || undefined,
-      }),
+      });
+    },
     onSuccess: (_d, draft) => {
-      localStorage.setItem('omnicast.lastAccounts', JSON.stringify(accountIds));
+      localStorage.setItem('omninews.lastAccounts', JSON.stringify(accountIds));
       void qc.invalidateQueries({ queryKey: ['schedule'] });
       toast.push({ tone: 'success', title: draft ? 'Draft saved' : 'Post scheduled' });
       navigate(draft ? '/posts/pipeline' : '/posts/calendar');
@@ -100,61 +122,65 @@ export function ComposePage() {
         <h1 className="font-display text-2xl font-semibold text-ink dark:text-stone-100">Create Post</h1>
       </header>
 
-      {/* 1 — media */}
-      <Section n={1} title="Media">
-        {video ? (
-          <div className="flex items-center gap-3">
-            <div className="flex h-14 w-24 items-center justify-center overflow-hidden bg-stone-100 font-mono text-[10px] text-ink-subtle dark:bg-stone-800/60 dark:text-stone-500">
-              {video.filename.split('.').pop()?.toUpperCase()}
-            </div>
+      {/* 1 — article */}
+      <Section n={1} title="Article">
+        {article && !creatingNew ? (
+          <div className="flex items-start gap-3">
+            {article.images[0] ? (
+              <img src={article.images[0]} alt="" className="h-14 w-24 shrink-0 object-cover" />
+            ) : (
+              <div className="flex h-14 w-24 shrink-0 items-center justify-center bg-stone-100 font-mono text-[10px] text-ink-subtle dark:bg-stone-800/60 dark:text-stone-500">
+                TEXT
+              </div>
+            )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-ink dark:text-stone-100">{video.filename}</p>
-              <p className="font-mono text-[10px] text-ink-subtle dark:text-stone-500">{video.mime}</p>
+              <p className="truncate text-sm font-medium text-ink dark:text-stone-100">{article.title || '(untitled)'}</p>
+              <p className="mt-0.5 line-clamp-2 text-xs text-ink-muted dark:text-stone-400">{article.body}</p>
             </div>
-            <Button size="sm" variant="secondary" onClick={() => setVideoId('')}>Replace</Button>
+            <Button size="sm" variant="secondary" onClick={() => setArticleId('')}>Replace</Button>
+          </div>
+        ) : creatingNew ? (
+          <div className="space-y-3">
+            <Field label="Title" hint={`${nTitle.length}/300`}>
+              <input value={nTitle} onChange={(e) => setNTitle(e.target.value)} maxLength={300} placeholder="Post title (required by Reddit)" className="input" />
+            </Field>
+            <Field label="Body">
+              <TextArea value={nBody} onChange={(e) => setNBody(e.target.value)} rows={5} maxLength={20000} placeholder="Write your post…" />
+            </Field>
+            <Field label="Link URL (optional)">
+              <input value={nLink} onChange={(e) => setNLink(e.target.value)} type="url" placeholder="https://…" className="input" />
+            </Field>
+            <Field label="Image URLs — one per line (optional)">
+              <TextArea value={nImages} onChange={(e) => setNImages(e.target.value)} rows={2} placeholder="https://example.com/photo.jpg" />
+            </Field>
+            <Button size="sm" variant="ghost" onClick={() => { setNewArticle(false); setArticleId(''); }}>
+              ← Pick from library instead
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">
-            {videos.isLoading ? <Skeleton className="h-20" /> : (
+            {articles.isLoading ? <Skeleton className="h-20" /> : (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {(videos.data?.videos ?? []).map((v) => (
+                {(articles.data?.articles ?? []).map((a) => (
                   <button
-                    key={v.id}
+                    key={a.id}
                     type="button"
-                    onClick={() => setVideoId(v.id)}
-                    className={`border p-2 text-left text-xs transition-colors ${videoId === v.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30' : 'border-stone-200 hover:border-stone-400 dark:border-stone-700 dark:hover:border-stone-500'}`}
+                    onClick={() => setArticleId(a.id)}
+                    className={`border p-2 text-left text-xs transition-colors ${articleId === a.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/30' : 'border-stone-200 hover:border-stone-400 dark:border-stone-700 dark:hover:border-stone-500'}`}
                   >
-                    <span className="block truncate font-medium text-ink dark:text-stone-100">{v.filename}</span>
-                    <span className="font-mono text-[10px] text-ink-subtle dark:text-stone-500">{v.mime.split('/')[1]}</span>
+                    <span className="block truncate font-medium text-ink dark:text-stone-100">{a.title || '(untitled)'}</span>
+                    <span className="mt-0.5 line-clamp-2 text-[10px] text-ink-subtle dark:text-stone-500">{a.body}</span>
                   </button>
                 ))}
+                {(articles.data?.articles ?? []).length === 0 && (
+                  <p className="col-span-full text-xs text-ink-muted dark:text-stone-400">No articles yet — write one below.</p>
+                )}
               </div>
             )}
             <div className="flex items-center gap-2 border-t border-stone-200 pt-3 dark:border-stone-800">
-              <Button size="sm" variant="secondary" loading={uploading !== null} onClick={() => fileInput.current?.click()}>
-                {uploading !== null ? 'Uploading…' : 'Upload new video'}
+              <Button size="sm" variant="secondary" onClick={() => { setNewArticle(true); setArticleId(''); }}>
+                Write new article
               </Button>
-              <input ref={fileInput} type="file" accept="video/mp4,video/quicktime,video/webm" className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) {
-                    setUploading(0);
-                    void api.uploadVideo(f, (n) => setUploading(n))
-                      .then((r) => {
-                        toast.push({ tone: 'success', title: 'Uploaded' });
-                        void qc.invalidateQueries({ queryKey: ['videos'] });
-                        // Upload responses differ across backends — read the
-                        // first available id shape instead of assuming one.
-                        const resp = r as { video?: { id?: string }; video_id?: string; id?: string };
-                        const vid = resp.video?.id ?? resp.video_id ?? resp.id;
-                        if (vid) setVideoId(vid);
-                      })
-                      .catch((err) => toast.push({ tone: 'error', title: 'Upload failed', description: err instanceof Error ? err.message : 'unknown_error' }))
-                      .finally(() => setUploading(null));
-                  }
-                  e.target.value = '';
-                }}
-              />
             </div>
           </div>
         )}
@@ -208,9 +234,9 @@ export function ComposePage() {
       </Section>
 
       {/* 3 — caption */}
-      <Section n={3} title="Caption">
-        <Field label={perPlatform ? 'Shared caption (fallback)' : 'Caption'} required hint={`${caption.length}/5000`}>
-          <TextArea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={5000} placeholder="Write your caption…" />
+      <Section n={3} title="Caption override">
+        <Field label={perPlatform ? 'Shared caption (fallback)' : 'Caption'} hint={`${caption.length}/5000 — empty uses the article's title + body`}>
+          <TextArea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={5000} placeholder="Override the post text (optional)…" />
         </Field>
         <button type="button" className="mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-100"
           onClick={() => setPerPlatform((v) => !v)}>
@@ -239,11 +265,11 @@ export function ComposePage() {
           <Field label={`Publish at (${tz})`} required>
             <input type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} className="input" />
           </Field>
-          <Field label="Visibility">
+          <Field label="Visibility" hint="Mapped per platform where supported">
             <Select value={visibility} onChange={(e) => setVisibility(e.target.value as typeof visibility)}>
-              <option value="private">Private</option>
-              <option value="unlisted">Unlisted</option>
               <option value="public">Public</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="private">Private</option>
             </Select>
           </Field>
         </div>
@@ -255,11 +281,11 @@ export function ComposePage() {
       {/* 5 — review */}
       <Section n={5} title="Review">
         <dl className="space-y-1.5 text-sm">
-          <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Video</dt><dd className="truncate font-medium text-ink dark:text-stone-100">{video?.filename ?? '—'}</dd></div>
+          <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Article</dt><dd className="truncate font-medium text-ink dark:text-stone-100">{creatingNew ? (nTitle || 'New article') : (article?.title ?? '—')}</dd></div>
           <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Accounts</dt><dd className="text-ink dark:text-stone-100">{selectedAccounts.map((a) => a.display_name).join(', ') || '—'}</dd></div>
           <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Time</dt><dd className="font-mono text-ink dark:text-stone-100">{dayjs(time).format('MMM D, HH:mm')} ({tz})</dd></div>
           <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Visibility</dt><dd className="capitalize text-ink dark:text-stone-100">{visibility}</dd></div>
-          <div><dt className="text-ink-subtle dark:text-stone-500">Caption</dt><dd className="mt-0.5 whitespace-pre-wrap rounded-sm bg-surface-muted p-2 text-[13px] text-ink dark:bg-stone-800/50 dark:text-stone-200">{caption || '—'}</dd></div>
+          <div><dt className="text-ink-subtle dark:text-stone-500">Caption</dt><dd className="mt-0.5 whitespace-pre-wrap rounded-sm bg-surface-muted p-2 text-[13px] text-ink dark:bg-stone-800/50 dark:text-stone-200">{caption || '(article title + body)'}</dd></div>
         </dl>
         {errors.length > 0 && (
           <ul className="mt-3 space-y-0.5 text-xs text-red-600 dark:text-red-400" role="alert">

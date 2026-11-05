@@ -4,7 +4,7 @@ import type {
 
 export interface NewScheduledPost {
   user_id: string;
-  video_id: string;
+  article_id: string;
   account_id: string;
   scheduled_at: number;
   caption: string;
@@ -25,10 +25,10 @@ export class ScheduledPostsRepo {
     await this.db
       .prepare(
         `INSERT INTO scheduled_posts
-         (id, user_id, video_id, account_id, scheduled_at, caption, per_platform_caption, visibility, status, external_post_id, last_error, retry_count, next_retry_at, is_dead, notes, created_at, updated_at)
+         (id, user_id, article_id, account_id, scheduled_at, caption, per_platform_caption, visibility, status, external_post_id, last_error, retry_count, next_retry_at, is_dead, notes, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL, 0, ?, ?, ?)`,
       )
-      .bind(id, input.user_id, input.video_id, input.account_id, input.scheduled_at,
+      .bind(id, input.user_id, input.article_id, input.account_id, input.scheduled_at,
         input.caption, input.per_platform_caption ?? null, input.visibility ?? 'private',
         input.status ?? 'pending', input.notes ?? null, now, now)
       .run();
@@ -56,12 +56,12 @@ export class ScheduledPostsRepo {
            a.video_count AS a_video_count, a.like_count AS a_like_count,
            a.avg_watch_seconds AS a_avg_watch_seconds, a.drop_off_pct AS a_drop_off_pct,
            a.last_sync_at AS a_last_sync_at,
-           v.id AS v_id, v.user_id AS v_user_id, v.file_path AS v_file_path, v.sha256 AS v_sha256,
-           v.size_bytes AS v_size_bytes, v.duration_sec AS v_duration_sec, v.mime AS v_mime,
-           v.thumbnail_path AS v_thumbnail_path, v.created_at AS v_created_at
+           v.id AS v_id, v.user_id AS v_user_id, v.title AS v_title, v.body AS v_body,
+           v.link_url AS v_link_url, v.images AS v_images,
+           v.created_at AS v_created_at, v.updated_at AS v_updated_at
          FROM scheduled_posts sp
          JOIN accounts a ON a.id = sp.account_id
-         JOIN videos v ON v.id = sp.video_id
+         JOIN articles v ON v.id = sp.article_id
          WHERE sp.id = ?`,
       )
       .bind(id)
@@ -72,7 +72,7 @@ export class ScheduledPostsRepo {
         .filter(([k]) => k.startsWith('a_'))
         .map(([k, v]) => [k.slice(2), v]),
     );
-    const video = Object.fromEntries(
+    const article = Object.fromEntries(
       Object.entries(row)
         .filter(([k]) => k.startsWith('v_'))
         .map(([k, v]) => [k.slice(2), v]),
@@ -80,7 +80,7 @@ export class ScheduledPostsRepo {
     const post = Object.fromEntries(
       Object.entries(row).filter(([k]) => !k.startsWith('a_') && !k.startsWith('v_')),
     );
-    return { ...post, account, video } as unknown as ClaimedPost;
+    return { ...post, account, article } as unknown as ClaimedPost;
   }
 
   async list(filters?: { status?: ScheduledPostStatus; accountId?: string; userId?: string; from?: number; to?: number; q?: string; limit?: number; offset?: number }): Promise<ScheduledPostRow[]> {
@@ -161,8 +161,8 @@ export class ScheduledPostsRepo {
     await this.db.prepare('DELETE FROM scheduled_posts WHERE id = ?').bind(id).run();
   }
 
-  async countByVideoId(videoId: string): Promise<number> {
-    const r = await this.db.prepare('SELECT COUNT(*) AS n FROM scheduled_posts WHERE video_id = ?').bind(videoId).first<{ n: number }>();
+  async countByArticleId(articleId: string): Promise<number> {
+    const r = await this.db.prepare('SELECT COUNT(*) AS n FROM scheduled_posts WHERE article_id = ?').bind(articleId).first<{ n: number }>();
     return r?.n ?? 0;
   }
 

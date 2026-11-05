@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark';
-const STORAGE_KEY = 'Omnicast.theme';
+const STORAGE_KEY = 'omninews.theme';
 
 function detect(): Theme {
   if (typeof window === 'undefined') return 'light';

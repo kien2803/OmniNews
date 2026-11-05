@@ -1,6 +1,6 @@
-# Omnicast
+# OmniNews
 
-SaaS social-media automation — upload video, schedule posts, publish lên YouTube / TikTok / Instagram / Facebook từ một nơi.
+SaaS social-media automation — viết bài một lần, schedule, publish lên Facebook / Threads / Reddit / X từ một nơi.
 
 **Live**: https://omnicast.trunkynw2803.workers.dev
 
@@ -14,7 +14,7 @@ SaaS social-media automation — upload video, schedule posts, publish lên YouT
 | Backend | Hono trên Cloudflare Workers |
 | Database | Cloudflare D1 (SQLite) |
 | Queue | Cloudflare Queues + DLQ + cron `*/1 * * * *` |
-| Storage | Cloudflare R2 (chưa bật — xem phần Blockers) |
+| Content | Articles (title + body + link + image URLs) — không cần binary storage |
 | Auth | JWT + bcrypt · token_version revocation · D1 rate limiting |
 
 ## Cấu trúc
@@ -53,14 +53,18 @@ Legacy redirects: /upload /schedule /calendar /pipeline /history → /posts/*
 `POST /auth/register` `POST /auth/login` (rate-limited) · `GET/PATCH/DELETE /auth/me`
 `POST /auth/change-password` (revokes old tokens) · `POST /auth/logout-all`
 `GET/POST /schedule` · `GET/PATCH/DELETE /schedule/:id` · `POST /schedule/:id/retry`
-`GET /schedule?status&account_id&from&to&q` · `GET /videos` · `GET /history`
+`GET /schedule?status&account_id&from&to&q` · `GET/POST /articles` · `GET/PATCH/DELETE /articles/:id` · `GET /history`
 `GET /dashboard/counts` · `GET /analytics?account_id&from&to` · `GET /quota` (global + `mine`)
 `GET /health` (DB ping + worker heartbeat)
 
-## Blockers (cần thao tác Cloudflare/developer console)
+## Blockers (cần thao tác developer console)
 
-- **R2 billing** — chưa enable → `POST /videos` + publisher port đang chờ
-- **TikTok credentials** — `TIKTOK_CLIENT_KEY/SECRET` (dev app + Content Posting review)
-- **Meta credentials** — `META_APP_ID/SECRET` (Business app + Advanced Access)
+- **Meta credentials** — `META_APP_ID/SECRET` (Business app + pages_manage_posts) cho Facebook
+- **Threads credentials** — `THREADS_APP_ID/SECRET` (Threads API app)
+- **Reddit credentials** — `REDDIT_CLIENT_ID/SECRET` (reddit.com/prefs/apps)
+- **X credentials** — `X_CLIENT_ID/SECRET` (developer portal, OAuth2 + offline.access)
+
+Bài viết cũ dạng video được migration 0008 mark `dead` (`legacy_video_post`);
+bảng `videos` giữ nguyên làm archive, không còn code nào đọc.
 
 Chi tiết tính năng: [FEATURES.md](FEATURES.md)

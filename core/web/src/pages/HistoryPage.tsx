@@ -11,7 +11,7 @@ import { EmptyState } from '../components/ui/EmptyState.js';
 import { SkeletonRow } from '../components/ui/Skeleton.js';
 import { Field, Select } from '../components/ui/Field.js';
 
-const PLATFORMS = ['', 'youtube', 'tiktok', 'instagram', 'facebook'] as const;
+const PLATFORMS = ['', 'facebook', 'threads', 'reddit', 'x'] as const;
 const STATUSES = ['', 'pending', 'uploading', 'published', 'failed', 'dead'] as const;
 
 export function HistoryPage() {

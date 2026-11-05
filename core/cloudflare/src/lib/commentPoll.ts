@@ -30,7 +30,7 @@ export async function pollComments(env: Env): Promise<void> {
             a.oauth_access_token
      FROM scheduled_posts p JOIN accounts a ON a.id = p.account_id
      WHERE p.status = 'published' AND p.external_post_id IS NOT NULL AND p.external_post_id != ''
-       AND a.platform IN ('youtube', 'facebook', 'instagram') AND a.status = 'active'
+       AND a.platform IN ('facebook', 'threads') AND a.status = 'active'
      ORDER BY p.updated_at DESC LIMIT ?`,
   )
     .bind(POLL_POST_LIMIT)

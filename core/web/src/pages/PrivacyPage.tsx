@@ -15,7 +15,7 @@ export function PrivacyPage() {
         <section className="mt-8 space-y-4 text-sm leading-relaxed">
           <h2 className="text-lg font-semibold">1. What we collect</h2>
           <p>
-            Omnicast stores your account credentials (email, hashed password), the videos you
+            OmniNews stores your account credentials (email, hashed password), the articles you
             upload, your scheduling preferences, and OAuth tokens for the social platforms you
             explicitly connect (YouTube, TikTok, Instagram, Facebook).
           </p>
@@ -31,14 +31,14 @@ export function PrivacyPage() {
           <p>
             When you connect a platform, your use is also governed by that platform's terms and
             privacy policy (Google/YouTube, TikTok, Meta). We only request the API scopes needed to
-            upload and publish videos on your behalf.
+            publish posts on your behalf.
           </p>
 
           <h2 className="text-lg font-semibold">4. Data retention &amp; deletion</h2>
           <p>
             Your data is kept while your account is active. You may disconnect social accounts,
-            delete uploaded videos, or delete your account at any time from the app. Deleting your
-            account removes your stored videos, scheduled posts, and OAuth tokens.
+            delete saved articles, or delete your account at any time from the app. Deleting your
+            account removes your stored articles, scheduled posts, and OAuth tokens.
           </p>
 
           <h2 className="text-lg font-semibold">5. Contact</h2>

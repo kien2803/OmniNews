@@ -14,15 +14,18 @@ export interface Env {
   // Secrets (wrangler secret put)
   TOKEN_ENCRYPTION_KEY: string;
   JWT_SECRET: string;
-  GOOGLE_CLIENT_ID?: string;
-  GOOGLE_REDIRECT_URI?: string;
-  GOOGLE_CLIENT_SECRET?: string;
-  TIKTOK_CLIENT_KEY?: string;
-  TIKTOK_CLIENT_SECRET?: string;
-  TIKTOK_REDIRECT_URI?: string;
   META_APP_ID?: string;
   META_APP_SECRET?: string;
   META_REDIRECT_URI?: string;
+  THREADS_APP_ID?: string;
+  THREADS_APP_SECRET?: string;
+  THREADS_REDIRECT_URI?: string;
+  REDDIT_CLIENT_ID?: string;
+  REDDIT_CLIENT_SECRET?: string;
+  REDDIT_REDIRECT_URI?: string;
+  X_CLIENT_ID?: string;
+  X_CLIENT_SECRET?: string;
+  X_REDIRECT_URI?: string;
 }
 
 /** Message sent through the publish queue (replaces the poll-claim loop). */

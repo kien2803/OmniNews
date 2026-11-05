@@ -4,11 +4,16 @@ import { userAuthRoutes } from './routes/userAuth';
 import { oauthRoutes } from './routes/oauth';
 import { accountRoutes } from './routes/accounts';
 import { scheduleRoutes } from './routes/schedule';
+import { articleRoutes } from './routes/articles';
 import { quotaRoutes } from './routes/quota';
 import { commentsRoutes } from './routes/comments';
 import { pollComments } from './lib/commentPoll';
+import { publishPost } from './lib/publish';
+import { usableAccessToken } from './lib/tokens';
 import { ScheduledPostsRepo } from './repos/scheduledPosts';
-import { MAX_PUBLISH_ATTEMPTS } from './lib/publishErrors';
+import { AccountsRepo } from './repos/accounts';
+import { QuotasRepo } from './repos/quotas';
+import { classifyPublishError, MAX_PUBLISH_ATTEMPTS } from './lib/publishErrors';
 import type { Env, PublishJob } from './env';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -53,15 +58,11 @@ app.route('/', oauthRoutes);
 app.route('/api', oauthRoutes); // SPA calls /api/* same-origin
 app.route('/api', accountRoutes);
 app.route('/api', scheduleRoutes);
+app.route('/api', articleRoutes);
 app.route('/api', quotaRoutes);
 app.route('/api', commentsRoutes);
 // /api/health aliases the root /health — the SPA probes the API path.
 app.get('/api/health', healthCheck);
-
-// TikTok developer portal — domain ownership verification file.
-app.get('/tiktok9M3PxVDaU23GxdXB3RV1DcGeZRfoFRqS.txt', (c) =>
-  c.text('tiktok-developers-site-verification=9M3PxVDaU23GxdXB3RV1DcGeZRfoFRqS'),
-);
 
 // SPA fallback — assets layer returns 404 for unknown paths before the
 // worker runs, so serve index.html ourselves for non-API GETs.
@@ -131,11 +132,24 @@ export default {
         msg.ack();
         continue;
       }
-      // Publisher dispatch isn't ported yet (blocked on R2 video storage).
-      // Fail fast and visibly — infinite msg.retry() would burn the queue's
-      // retries and silently DLQ the post instead of telling the user why.
-      await posts.markFailed(postId, 'publisher_not_deployed');
-      msg.ack();
+      try {
+        const token = await usableAccessToken(env, new AccountsRepo(env.DB), post.account);
+        const result = await publishPost(env, post, token);
+        await posts.markPublished(postId, result.external_id);
+        await new QuotasRepo(env.DB).incrementUsage(post.account.platform, 1, Date.now(), post.user_id);
+        msg.ack();
+      } catch (e) {
+        const msgText = e instanceof Error ? e.message : String(e);
+        if (classifyPublishError(e) === 'permanent') {
+          // No point retrying — surface the reason and move on.
+          await posts.markFailed(postId, msgText);
+          msg.ack();
+        } else {
+          // Let the queue retry (bounded by max_retries → DLQ → dead).
+          await posts.releaseToPending(postId, msgText, (post.retry_count ?? 0) + 1);
+          msg.retry();
+        }
+      }
     }
   },
 };

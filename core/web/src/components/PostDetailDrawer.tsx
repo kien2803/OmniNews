@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { api, type UpdateScheduleInput, type VideoWire } from '../lib/api.js';
+import { api, type ArticleWire, type UpdateScheduleInput } from '../lib/api.js';
 import type { AccountInfo } from '../lib/accounts.js';
 import { useToast } from './ui/Toast.js';
 import { Button } from './ui/Button.js';
 import { Badge } from './ui/Badge.js';
 import { Field, Select, TextArea } from './ui/Field.js';
-import type { ScheduledPostRow } from '@social-auto/shared';
+import type { ScheduledPostRow } from '../lib/api.js';
 
 const STATUS_TONES: Record<string, 'success' | 'warn' | 'danger' | 'neutral'> = {
   draft: 'neutral',
@@ -21,13 +21,13 @@ const STATUS_TONES: Record<string, 'success' | 'warn' | 'danger' | 'neutral'> = 
 export function PostDetailDrawer({
   post,
   account,
-  video,
+  article,
   onClose,
   onChanged,
 }: {
   post: ScheduledPostRow;
   account: AccountInfo | undefined;
-  video: VideoWire | undefined;
+  article: ArticleWire | undefined;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -143,8 +143,17 @@ export function PostDetailDrawer({
               <dd className="capitalize">{account ? `${account.platform} — ${account.display_name}` : post.account_id}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="w-20 shrink-0 text-ink-subtle dark:text-stone-500">Video</dt>
-              <dd>{video?.filename ?? post.video_id}</dd>
+              <dt className="w-20 shrink-0 text-ink-subtle dark:text-stone-500">Article</dt>
+              <dd className="min-w-0">
+                {article ? (
+                  <>
+                    <span className="block truncate font-medium">{article.title || '(untitled)'}</span>
+                    {article.body && <span className="block whitespace-pre-wrap break-words text-xs text-ink-muted dark:text-stone-400">{article.body.slice(0, 300)}</span>}
+                  </>
+                ) : (
+                  post.article_id ?? '—'
+                )}
+              </dd>
             </div>
             <div className="flex gap-2">
               <dt className="w-20 shrink-0 text-ink-subtle dark:text-stone-500">Caption</dt>

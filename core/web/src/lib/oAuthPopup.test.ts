@@ -8,8 +8,8 @@ import { POPUP_MESSAGE_TYPE } from '@social-auto/shared';
 
 describe('buildOAuthStartUrl', () => {
   it('appends ?popup=1 to /api/auth/<platform>/start', () => {
-    expect(buildOAuthStartUrl('youtube')).toBe(
-      '/api/auth/youtube/start?popup=1',
+    expect(buildOAuthStartUrl('facebook')).toBe(
+      '/api/auth/facebook/start?popup=1',
     );
   });
 
@@ -42,10 +42,10 @@ describe('extractOAuthResultFromMessage', () => {
   it('returns the payload for a same-origin popup-close message', () => {
     const event = makeMessageEvent(window.location.origin, {
       type: POPUP_MESSAGE_TYPE,
-      payload: { connected: 'youtube', account_id: 'abc' },
+      payload: { connected: 'facebook', account_id: 'abc' },
     });
     expect(extractOAuthResultFromMessage(event)).toEqual({
-      connected: 'youtube',
+      connected: 'facebook',
       account_id: 'abc',
     });
   });
@@ -53,7 +53,7 @@ describe('extractOAuthResultFromMessage', () => {
   it('rejects messages from a different origin', () => {
     const event = makeMessageEvent('https://evil.example.com', {
       type: POPUP_MESSAGE_TYPE,
-      payload: { connected: 'youtube' },
+      payload: { connected: 'facebook' },
     });
     expect(extractOAuthResultFromMessage(event)).toBeNull();
   });
@@ -61,7 +61,7 @@ describe('extractOAuthResultFromMessage', () => {
   it('rejects messages with the wrong type', () => {
     const event = makeMessageEvent(window.location.origin, {
       type: 'some-other-type',
-      payload: { connected: 'youtube' },
+      payload: { connected: 'facebook' },
     });
     expect(extractOAuthResultFromMessage(event)).toBeNull();
   });
@@ -96,8 +96,8 @@ describe('openOAuthPopup', () => {
     (window as unknown as { open: () => Window | null }).open = () => null;
     await expect(
       openOAuthPopup({
-        startUrl: '/api/auth/youtube/start?popup=1',
-        fallbackUrl: '/api/auth/youtube/start',
+        startUrl: '/api/auth/facebook/start?popup=1',
+        fallbackUrl: '/api/auth/facebook/start',
       }),
     ).rejects.toThrow('popup_blocked');
   });
@@ -117,8 +117,8 @@ describe('openOAuthPopup', () => {
 
     const settled = expect(
       openOAuthPopup({
-        startUrl: '/api/auth/youtube/start?popup=1',
-        fallbackUrl: '/api/auth/youtube/start',
+        startUrl: '/api/auth/facebook/start?popup=1',
+        fallbackUrl: '/api/auth/facebook/start',
         timeoutMs: 1000,
       }),
     ).rejects.toThrow('popup_timeout');
@@ -128,7 +128,7 @@ describe('openOAuthPopup', () => {
         origin: 'https://evil.example.com',
         data: {
           type: POPUP_MESSAGE_TYPE,
-          payload: { connected: 'youtube' },
+          payload: { connected: 'facebook' },
         },
       }),
     );
@@ -144,8 +144,8 @@ describe('openOAuthPopup', () => {
 
     const settled = expect(
       openOAuthPopup({
-        startUrl: '/api/auth/youtube/start?popup=1',
-        fallbackUrl: '/api/auth/youtube/start',
+        startUrl: '/api/auth/facebook/start?popup=1',
+        fallbackUrl: '/api/auth/facebook/start',
         timeoutMs: 1000,
       }),
     ).rejects.toThrow('popup_timeout');
@@ -155,7 +155,7 @@ describe('openOAuthPopup', () => {
         origin: window.location.origin,
         data: {
           type: 'some-other-type',
-          payload: { connected: 'youtube' },
+          payload: { connected: 'facebook' },
         },
       }),
     );
@@ -171,8 +171,8 @@ describe('openOAuthPopup', () => {
 
     const settled = expect(
       openOAuthPopup({
-        startUrl: '/api/auth/youtube/start?popup=1',
-        fallbackUrl: '/api/auth/youtube/start',
+        startUrl: '/api/auth/facebook/start?popup=1',
+        fallbackUrl: '/api/auth/facebook/start',
         timeoutMs: 5000,
       }),
     ).rejects.toThrow('popup_closed_by_user');

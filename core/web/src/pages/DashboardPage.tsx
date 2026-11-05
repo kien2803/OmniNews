@@ -8,7 +8,7 @@ import { Badge } from '../components/ui/Badge.js';
 import { EmptyState } from '../components/ui/EmptyState.js';
 import { Skeleton } from '../components/ui/Skeleton.js';
 import { useAccounts } from '../lib/accounts.js';
-import type { ScheduledPostRow } from '@social-auto/shared';
+import type { ScheduledPostRow } from '../lib/api.js';
 
 
 interface DashboardCounts {
@@ -39,16 +39,16 @@ function StatTile({
 }
 
 const PLATFORM_META: Record<string, { label: string }> = {
-  youtube: { label: 'YouTube' },
-  tiktok: { label: 'TikTok' },
-  instagram: { label: 'Instagram' },
   facebook: { label: 'Facebook' },
+  threads: { label: 'Threads' },
+  reddit: { label: 'Reddit' },
+  x: { label: 'X' },
 };
 
 /** Channel lineup CH-01..04 — one tile per platform slot, on air vs standby. */
 function ChannelLineup() {
   const accounts = useAccounts();
-  const platforms = ['youtube', 'tiktok', 'instagram', 'facebook'];
+  const platforms = ['facebook', 'threads', 'reddit', 'x'];
   return (
     <div className="grid grid-cols-2 border border-stone-200 bg-surface md:grid-cols-4 dark:border-stone-800 dark:bg-[#211d18]">
       {platforms.map((plat, i) => {
@@ -139,10 +139,10 @@ function ChannelLineup() {
    <Card>
       <CardBody className="flex flex-wrap items-center gap-2">
         <Link
-          to="/upload"
+          to="/posts/new"
           className="btn-primary"
         >
-          ↑ New upload
+          ↑ New post
         </Link>
         <Link to="/schedule" className="btn-secondary">
           <IconSchedule className="h-4 w-4" /> Schedule list
@@ -302,8 +302,8 @@ export function DashboardPage() {
             Overview of your scheduled and published content.
           </p>
         </div>
-        <Link to="/upload" className="btn-primary">
-          <IconUpload className="h-4 w-4" /> New upload
+        <Link to="/posts/new" className="btn-primary">
+          <IconUpload className="h-4 w-4" /> New post
         </Link>
       </header>
 

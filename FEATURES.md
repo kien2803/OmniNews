@@ -1,6 +1,8 @@
-# Features — Omnicast
+# Features — OmniNews
 
 Trạng thái tính năng theo stack deploy hiện tại (Cloudflare Workers + D1). Stack legacy Fastify (`core/api`, `core/worker`) không còn serve production.
+
+> Pivot 2026-11: content unit = **articles** (title + body + link + image URLs), platforms = **facebook, threads, reddit, x**. Video code đã bị thay thế (migration 0008).
 
 ## Điều hướng & Shell
 

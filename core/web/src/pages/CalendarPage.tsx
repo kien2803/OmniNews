@@ -3,10 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import {
   api,
+  type ArticleWire,
   type CreateScheduleInput,
-  type VideoWire,
+  type Platform,
+  type ScheduledPostRow,
 } from '../lib/api.js';
-import type { Platform, ScheduledPostRow } from '@social-auto/shared';
 import { useAccounts, type AccountInfo } from '../lib/accounts.js';
 import { Button } from '../components/ui/Button.js';
 import { PostsNav } from '../components/PostsNav.js';
@@ -23,10 +24,10 @@ type ViewMode = 'week' | 'month';
 /** Left border + dot color per platform — status is shown via Badge inside
  *  the detail modal, so chips differentiate by platform only. */
 const PLATFORM_COLORS: Record<string, string> = {
-  youtube: 'border-red-500 bg-red-50 dark:bg-red-950/40',
-  tiktok: 'border-stone-800 bg-stone-100 dark:bg-stone-800/60',
-  instagram: 'border-pink-500 bg-pink-50 dark:bg-pink-950/40',
   facebook: 'border-blue-700 bg-blue-50 dark:bg-blue-950/40',
+  threads: 'border-stone-800 bg-stone-100 dark:bg-stone-800/60',
+  reddit: 'border-orange-600 bg-orange-50 dark:bg-orange-950/40',
+  x: 'border-stone-800 bg-stone-100 dark:bg-stone-800/60',
 };
 
 const STATUS_TONES: Record<string, 'success' | 'warn' | 'danger' | 'neutral'> = {
@@ -160,18 +161,18 @@ function DayCell({
 function QuickScheduleModal({
   date,
   accounts,
-  videos,
+  articles,
   onClose,
   onCreated,
 }: {
   date: dayjs.Dayjs;
   accounts: AccountInfo[];
-  videos: VideoWire[] | undefined;
+  articles: ArticleWire[] | undefined;
   onClose: () => void;
   onCreated: () => void;
 }) {
   const toast = useToast();
-  const [videoId, setVideoId] = useState('');
+  const [articleId, setArticleId] = useState('');
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [time, setTime] = useState(date.hour(12).minute(0).format('YYYY-MM-DDTHH:mm'));
   const [caption, setCaption] = useState('');
@@ -190,7 +191,7 @@ function QuickScheduleModal({
       toast.push({ tone: 'error', title: 'Schedule failed', description: err instanceof Error ? err.message : 'unknown_error' }),
   });
 
-  const canSubmit = videoId && accountIds.length > 0 && caption.trim() && !create.isPending;
+  const canSubmit = articleId && accountIds.length > 0 && !create.isPending;
 
   return (
     <Modal
@@ -206,7 +207,7 @@ function QuickScheduleModal({
             disabled={!canSubmit}
             onClick={() =>
               create.mutate({
-                video_id: videoId,
+                article_id: articleId,
                 account_ids: accountIds,
                 scheduled_at: new Date(time).getTime(),
                 caption,
@@ -220,19 +221,19 @@ function QuickScheduleModal({
       }
     >
       <div className="space-y-4">
-        <Field label="Video" required>
-          {videos && videos.length > 0 ? (
-            <Select value={videoId} onChange={(e) => setVideoId(e.target.value)}>
-              <option value="">Select a video…</option>
-              {videos.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.filename}
+        <Field label="Article" required>
+          {articles && articles.length > 0 ? (
+            <Select value={articleId} onChange={(e) => setArticleId(e.target.value)}>
+              <option value="">Select an article…</option>
+              {articles.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.title || a.body.slice(0, 60) || '(untitled)'}
                 </option>
               ))}
             </Select>
           ) : (
             <p className="text-sm text-ink-muted dark:text-stone-400">
-              No videos uploaded yet — upload one first from the Upload page.
+              No articles yet — write one from the Library page.
             </p>
           )}
         </Field>
@@ -280,7 +281,7 @@ function QuickScheduleModal({
             </Select>
           </Field>
         </div>
-        <Field label="Caption" required>
+        <Field label="Caption override" hint="Empty uses the article's title + body">
           <TextArea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={5000} />
         </Field>
       </div>
@@ -298,9 +299,9 @@ export function CalendarPage() {
   const [postModal, setPostModal] = useState<ScheduledPostRow | null>(null);
 
   const accounts = useAccounts();
-  const videos = useQuery({
-    queryKey: ['videos'],
-    queryFn: () => api.listVideos(),
+  const articles = useQuery({
+    queryKey: ['articles'],
+    queryFn: () => api.listArticles(),
     retry: 1,
   });
 
@@ -322,9 +323,9 @@ export function CalendarPage() {
     () => new Map((accounts.data ?? []).map((a) => [a.id, a] as const)),
     [accounts.data],
   );
-  const videoById = useMemo(
-    () => new Map((videos.data?.videos ?? []).map((v) => [v.id, v] as const)),
-    [videos.data],
+  const articleById = useMemo(
+    () => new Map((articles.data?.articles ?? []).map((a) => [a.id, a] as const)),
+    [articles.data],
   );
 
   // Platform filter happens client-side — the API filters by account_id and
@@ -426,10 +427,10 @@ export function CalendarPage() {
           aria-label="Filter by platform"
         >
           <option value="">All platforms</option>
-          <option value="youtube">YouTube</option>
-          <option value="tiktok">TikTok</option>
-          <option value="instagram">Instagram</option>
           <option value="facebook">Facebook</option>
+          <option value="threads">Threads</option>
+          <option value="reddit">Reddit</option>
+          <option value="x">X</option>
         </Select>
         <Select
           value={filters.account_id}
@@ -512,7 +513,7 @@ export function CalendarPage() {
         <QuickScheduleModal
           date={dayModal}
           accounts={accounts.data ?? []}
-          videos={videos.data?.videos}
+          articles={articles.data?.articles}
           onClose={() => setDayModal(null)}
           onCreated={() => void qc.invalidateQueries({ queryKey: ['schedule'] })}
         />
@@ -521,7 +522,7 @@ export function CalendarPage() {
         <PostDetailDrawer
           post={postModal}
           account={accountById.get(postModal.account_id)}
-          video={videoById.get(postModal.video_id)}
+          article={postModal.article_id ? articleById.get(postModal.article_id) : undefined}
           onClose={() => setPostModal(null)}
           onChanged={() => void qc.invalidateQueries({ queryKey: ['schedule'] })}
         />

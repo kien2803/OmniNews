@@ -1,18 +1,58 @@
-import type { Platform, ScheduledPostRow } from '@social-auto/shared';
 import { classifyHttpError, reportError } from './telemetry.js';
 
-/** Wire shape returned by /videos and /videos/:id. Matches the API's
- *  VideoWire (file_path / thumbnail_path deliberately omitted). */
-export interface VideoWire {
+/** Supported platforms — mirrors the worker's repos/types.ts. The SPA no
+ *  longer pulls this from @social-auto/shared (that package still reflects
+ *  the legacy video stack used by core/api + core/worker). */
+export type Platform = 'facebook' | 'threads' | 'reddit' | 'x';
+
+export const PLATFORMS: Platform[] = ['facebook', 'threads', 'reddit', 'x'];
+
+export const PLATFORM_LABELS: Record<Platform, string> = {
+  facebook: 'Facebook',
+  threads: 'Threads',
+  reddit: 'Reddit',
+  x: 'X',
+};
+
+export type ScheduledPostStatus = 'draft' | 'pending' | 'uploading' | 'published' | 'failed' | 'dead';
+export type Visibility = 'public' | 'unlisted' | 'private';
+
+export interface ScheduledPostRow {
   id: string;
-  sha256: string;
-  size_bytes: number;
-  duration_sec: number | null;
-  mime: string;
-  /** Basename only — full storage path never leaves the server. */
-  filename: string;
-  has_thumbnail: boolean;
+  user_id: string;
+  article_id: string | null;
+  account_id: string;
+  scheduled_at: number;
+  caption: string;
+  per_platform_caption: string | null;
+  visibility: Visibility;
+  status: ScheduledPostStatus;
+  external_post_id: string | null;
+  last_error: string | null;
+  retry_count: number;
+  next_retry_at: number | null;
+  notes: string | null;
+  is_dead: number;
   created_at: number;
+  updated_at: number;
+}
+
+/** Wire shape returned by /articles — `images` arrives already parsed. */
+export interface ArticleWire {
+  id: string;
+  title: string;
+  body: string;
+  link_url: string;
+  images: string[];
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ArticleInput {
+  title?: string;
+  body?: string;
+  link_url?: string;
+  images?: string[];
 }
 
 // Account domain types
@@ -39,50 +79,46 @@ export interface AccountMetadata {
 }
 
 export interface AccountChannelSnapshot {
-  /** Platform-issued channel handle, e.g. "@mychannel". '' when unknown. */
+  /** Platform-issued handle, e.g. "@name" / "username". '' when unknown. */
   channel_handle: string;
   /** Default avatar URL. '' when unknown. */
   avatar_url: string;
-  /** Subscriber count, null if private / unknown. */
+  /** Follower/subscriber count, null if private / unknown. */
   subscribers: number | null;
   /** Total view count, null if private / unknown. */
   views: number | null;
-  /** Public video count, null if unknown. */
+  /** Public post count, null if unknown. */
   video_count: number | null;
-  /** Sum of like_count across the channel's recent videos. null if unknown. */
+  /** Like/reaction total when the platform exposes one. null if unknown. */
   like_count: number | null;
-  /** Average watch time per view, in seconds. null if unknown. */
   avg_watch_seconds: number | null;
-  /** Audience drop-off fraction in [0, 1]. null if unknown. */
   drop_off_pct: number | null;
   /** Unix ms of the last successful sync. null = never synced. */
   snapshot_at: number | null;
 }
 
 /**
- * One row in the Analytics → "Recent videos" list. The shape mirrors what
- * the YouTube Data API `videos.list?part=snippet,statistics` returns.
- * Rows come from the synced server-side library (POST .../videos/sync).
+ * One row in the account's "Recent posts" list. Rows come from the synced
+ * server-side library (POST .../posts/sync).
  */
-export interface ChannelVideo {
+export interface ChannelPost {
   id: string;
   title: string;
   thumbnail_url: string;
   published_at: number | null;
-  duration_sec: number | null;
   view_count: number | null;
   like_count: number | null;
   comment_count: number | null;
   url: string;
 }
 
-export interface ChannelVideoListResponse {
-  videos: ChannelVideo[];
+export interface ChannelPostListResponse {
+  posts: ChannelPost[];
   /** ms epoch of the last sync — null when the library was never synced. */
   synced_at: number | null;
 }
 
-export interface ChannelVideoSyncResponse {
+export interface ChannelPostSyncResponse {
   synced: number;
   synced_at: number;
 }
@@ -137,14 +173,9 @@ export interface UpdateAccountInput {
   purpose?: string | null;
   link?: string | null;
 }
-export interface SyncAccountResponse {
-  id: string;
-  channel: AccountChannelSnapshot;
-}
-
 
 // ────────────────────────────────────────────────────────────────────────────
-// Stats / analytics shapes (existing)
+// Stats / analytics shapes
 // ────────────────────────────────────────────────────────────────────────────
 
 export interface AccountStats {
@@ -272,13 +303,19 @@ function accountFilterQs(f?: AccountListFilter): string {
 }
 
 export const api = {
-  listVideos: () => req<{ videos: VideoWire[] }>('/videos'),
-  getVideo: (id: string) => req<VideoWire>(`/videos/${id}`),
-  deleteVideo: (id: string) => req<{ success: boolean; message: string }>(`/videos/${id}`, { method: 'DELETE' }),
-  uploadVideo: (file: File, onProgress?: (bytes: number) => void, uploadId?: string) =>
-    uploadFile('/videos', file, onProgress, uploadId),
-  cancelUpload: (uploadId: string) =>
-    req<{ success: boolean }>(`/videos/${uploadId}/cancel`, { method: 'POST' }),
+  listArticles: (q?: string) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    const qs = params.toString();
+    return req<{ articles: ArticleWire[] }>(`/articles${qs ? `?${qs}` : ''}`);
+  },
+  getArticle: (id: string) => req<{ article: ArticleWire }>(`/articles/${id}`),
+  createArticle: (input: ArticleInput) =>
+    req<{ article: ArticleWire }>('/articles', { method: 'POST', body: JSON.stringify(input) }),
+  updateArticle: (id: string, input: ArticleInput) =>
+    req<{ article: ArticleWire }>(`/articles/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  deleteArticle: (id: string) => req<{ ok: true }>(`/articles/${id}`, { method: 'DELETE' }),
+
   listSchedule: (q?: { status?: string; account_id?: string; from?: number; to?: number; q?: string }) => {
     const params = new URLSearchParams();
     if (q?.status) params.set('status', q.status);
@@ -305,7 +342,6 @@ export const api = {
   dashboardCounts: () => req<DashboardCounts>('/dashboard/counts'),
   health: () => req<HealthResponse>('/health'),
   quota: () => req<QuotaResponse>('/quota'),
-  youtubeQuota: () => req<YouTubeQuotaResponse>('/quota/youtube'),
   listComments: (f?: { account_id?: string; reply_status?: string; q?: string }) => {
     const p = new URLSearchParams();
     if (f?.account_id) p.set('account_id', f.account_id);
@@ -321,9 +357,6 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ enabled, template }),
     }),
-  getUploadProgress: (videoId: string) => req<UploadProgress>(`/videos/${videoId}/progress`),
-  uploadVideoBulk: (files: FileList, onProgress?: (current: number, total: number) => void) =>
-    uploadFilesBulk('/videos/bulk', files, onProgress),
 
   // Account list — server-side filtered, paged, and inclusive of
   // metadata + channel snapshot for the AccountsPage UI.
@@ -337,12 +370,10 @@ export const api = {
   deleteAccount: (id: string) =>
     req<{ ok: true }>(`/accounts/${id}`, { method: 'DELETE' }),
   accountStats: (id: string) => req<AccountStats>(`/accounts/${id}/stats`),
-  listChannelVideos: (id: string) =>
-    req<ChannelVideoListResponse>(`/accounts/${id}/videos`),
-  syncChannelVideos: (id: string) =>
-    req<ChannelVideoSyncResponse>(`/accounts/${id}/videos/sync`, { method: 'POST', body: '' }),
-  syncAccount: (id: string) =>
-    req<SyncAccountResponse>(`/accounts/${id}/sync`, { method: 'POST', body: '' }),
+  listChannelPosts: (id: string) =>
+    req<ChannelPostListResponse>(`/accounts/${id}/posts`),
+  syncChannelPosts: (id: string) =>
+    req<ChannelPostSyncResponse>(`/accounts/${id}/posts/sync`, { method: 'POST', body: '' }),
 
   analytics: (accountId?: string, range?: { from?: number; to?: number }) => {
     const p = new URLSearchParams();
@@ -368,92 +399,12 @@ export const api = {
   },
 };
 
-async function uploadFile<T>(
-  path: string,
-  file: File,
-  onProgress?: (bytes: number) => void,
-  uploadId?: string,
-): Promise<T> {
-  const { promise, resolve, reject } = Promise.withResolvers<T>();
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', `${BASE}${path}`);
-  xhr.withCredentials = true;
-  xhr.upload.onprogress = (e) => onProgress?.(e.loaded);
-  xhr.onload = () => {
-    if (xhr.status >= 200 && xhr.status < 300) {
-      try {
-        resolve(JSON.parse(xhr.responseText) as T);
-      } catch (err) {
-        reject(err);
-      }
-    } else {
-      let msg = xhr.statusText;
-      try {
-        msg = JSON.parse(xhr.responseText).error ?? msg;
-      } catch {
-        // ignore
-      }
-      reject(new ApiError(xhr.status, msg));
-    }
-  };
-  xhr.onerror = () => reject(new ApiError(0, 'network_error'));
-  const fd = new FormData();
-  if (uploadId) fd.append('upload_id', uploadId);
-  fd.append('file', file);
-  xhr.send(fd);
-  return promise;
-}
-async function uploadFilesBulk<T>(
-  path: string,
-  files: FileList,
-  onProgress?: (current: number, total: number) => void,
-): Promise<T> {
-  const { promise, resolve, reject } = Promise.withResolvers<T>();
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', `${BASE}${path}`);
-  xhr.withCredentials = true;
-  
-  let loaded = 0;
-  xhr.upload.onprogress = () => {
-    loaded++;
-    onProgress?.(loaded, files.length);
-  };
-  
-  xhr.onload = () => {
-    if (xhr.status >= 200 && xhr.status < 300) {
-      try {
-        resolve(JSON.parse(xhr.responseText) as T);
-      } catch (err) {
-        reject(err);
-      }
-    } else {
-      let msg = xhr.statusText;
-      try {
-        msg = JSON.parse(xhr.responseText).error ?? msg;
-      } catch {
-        // ignore
-      }
-      reject(new ApiError(xhr.status, msg));
-    }
-  };
-  xhr.onerror = () => reject(new ApiError(0, 'network_error'));
-  
-  const fd = new FormData();
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (file) {
-      fd.append(`file${i}`, file);
-    }
-  }
-  return promise;
-}
-
 export interface CreateScheduleInput {
-  video_id: string;
-  caption: string;
+  article_id: string;
+  caption?: string;
   per_platform_caption?: Record<string, string>;
   scheduled_at: number;
-  visibility?: 'public' | 'unlisted' | 'private';
+  visibility?: Visibility;
   draft?: boolean;
   notes?: string;
   account_ids: string[];
@@ -462,7 +413,7 @@ export interface CreateScheduleInput {
 export interface UpdateScheduleInput {
   caption?: string;
   scheduled_at?: number;
-  visibility?: 'public' | 'unlisted' | 'private';
+  visibility?: Visibility;
   notes?: string | null;
   /** Promote a draft to pending — requires scheduled_at. */
   schedule?: boolean;
@@ -473,29 +424,17 @@ export interface DashboardCounts {
   published_last_7d: number;
 }
 
-// Phase 3 T3.6 — extended /health response.
 export interface HealthResponse {
-  status: 'ok';
-  uptime_sec: number;
+  status: 'ok' | 'degraded';
   timestamp: number;
-  storage_dir: string;
-  worker?: {
-    status: 'ok';
-    last_publish_at: number | null;
-    by_status: Record<string, number>;
-  };
-  accounts?: Array<{
-    id: string;
-    platform: string;
-    display_name: string;
-    status: 'active' | 'expired' | 'revoked';
-  }>;
+  runtime?: string;
+  last_cron_at?: number | null;
+  worker_lag_sec?: number | null;
 }
 
-// Phase 3 T3.2 — /quota response.
 export interface QuotaResponse {
   quotas: Array<{
-    platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook';
+    platform: Platform;
     used: number;
     limit: number;
     remaining: number;
@@ -503,23 +442,6 @@ export interface QuotaResponse {
     warning: boolean;
   }>;
   now: number;
-}
-
-export interface YouTubeQuotaResponse {
-  platform: 'youtube';
-  used: number;
-  limit: number;
-  remaining: number;
-  reset_at: number;
-  warning: boolean;
-  upload_cost: number;
-  uploads_remaining: number;
-}
-
-export interface UploadProgress {
-  videoId: string;
-  progress: number;
-  timestamp: number;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -579,26 +501,6 @@ export const authApi = {
   },
   deleteAccount: () => req<{ success: boolean }>('/auth/me', { method: 'DELETE' }),
 };
-
-/** Thumbnails live behind Bearer auth, which <img> can't send — fetch the
- * bytes and hand the caller an object URL (remember to revoke it). */
-export async function fetchVideoThumbnail(videoId: string): Promise<string | null> {
-  const res = await fetch(`${BASE}/videos/${videoId}/thumbnail`, {
-    headers: { authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) return null;
-  return URL.createObjectURL(await res.blob());
-}
-
-/** Same Bearer constraint for <video> preview — fetch the stream as a blob
- * and hand back an object URL. Fine for preview sizes used in the UI. */
-export async function fetchVideoStream(videoId: string): Promise<string | null> {
-  const res = await fetch(`${BASE}/videos/${videoId}/stream`, {
-    headers: { authorization: `Bearer ${getToken()}` },
-  });
-  if (!res.ok) return null;
-  return URL.createObjectURL(await res.blob());
-}
 
 // Export token utilities for use in AuthContext
 export { getToken, setToken, clearToken };

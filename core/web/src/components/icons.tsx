@@ -1,14 +1,14 @@
 import type { ComponentType, SVGProps } from 'react';
 import {
   IconLayoutDashboard,
-  IconCloudUpload,
+  IconNews,
   IconCalendarTime,
   IconHistory as TbHistory,
   IconChartBar,
   IconUsersGroup,
   IconSettings as TbSettings,
   IconCircleCheck,
-  IconX,
+  IconX as IconXClose,
   IconInfoCircle,
   IconAlertTriangle,
   IconPlayerPlay,
@@ -19,10 +19,10 @@ import {
   IconMoon as TbMoon,
   IconSun as TbSun,
   IconMenu2,
-  IconBrandYoutube,
-  IconBrandTiktok,
-  IconBrandInstagram,
   IconBrandFacebook,
+  IconBrandThreads,
+  IconBrandReddit,
+  IconBrandX,
   type TablerIcon,
 } from '@tabler/icons-react';
 
@@ -41,14 +41,14 @@ const wrap = (C: TablerIcon): IconComponent => {
 };
 
 export const IconDashboard = wrap(IconLayoutDashboard);
-export const IconUpload = wrap(IconCloudUpload);
+export const IconUpload = wrap(IconNews);
 export const IconSchedule = wrap(IconCalendarTime);
 export const IconHistory = wrap(TbHistory);
 export const IconAnalytics = wrap(IconChartBar);
 export const IconAccounts = wrap(IconUsersGroup);
 export const IconSettings = wrap(TbSettings);
 export const IconCheck = wrap(IconCircleCheck);
-export const IconCross = wrap(IconX);
+export const IconCross = wrap(IconXClose);
 export const IconInfo = wrap(IconInfoCircle);
 export const IconWarning = wrap(IconAlertTriangle);
 export const IconPlay = wrap(IconPlayerPlay);
@@ -59,7 +59,7 @@ export const IconLogout = wrap(TbLogout);
 export const IconMoon = wrap(TbMoon);
 export const IconSun = wrap(TbSun);
 export const IconMenu = wrap(IconMenu2);
-export const IconYouTube = wrap(IconBrandYoutube);
-export const IconTikTok = wrap(IconBrandTiktok);
-export const IconInstagram = wrap(IconBrandInstagram);
 export const IconFacebook = wrap(IconBrandFacebook);
+export const IconThreads = wrap(IconBrandThreads);
+export const IconReddit = wrap(IconBrandReddit);
+export const IconX = wrap(IconBrandX);

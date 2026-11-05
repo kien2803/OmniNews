@@ -14,7 +14,7 @@ export function TermsPage() {
         <section className="mt-8 space-y-4 text-sm leading-relaxed">
           <h2 className="text-lg font-semibold">1. The service</h2>
           <p>
-            Omnicast lets you upload videos, schedule posts, and publish content to social
+            OmniNews lets you write articles, schedule posts, and publish content to social
             media platforms (YouTube, TikTok, Instagram, Facebook) that you connect yourself.
             You authorize each connection via the platform's own OAuth flow and can disconnect
             at any time.
@@ -22,7 +22,7 @@ export function TermsPage() {
 
           <h2 className="text-lg font-semibold">2. Your content and accounts</h2>
           <p>
-            You keep full ownership of your videos and posts. You are responsible for the
+            You keep full ownership of your articles and posts. You are responsible for the
             content you publish and for complying with each platform's own terms and content
             policies. We act only on the schedules you set — Omnicast never posts on your
             behalf without a post you explicitly created.

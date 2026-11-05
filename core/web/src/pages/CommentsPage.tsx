@@ -10,15 +10,15 @@ import { Button } from '../components/ui/Button.js';
 import { EmptyState } from '../components/ui/EmptyState.js';
 import { SkeletonRow } from '../components/ui/Skeleton.js';
 import { Select, TextInput } from '../components/ui/Field.js';
-import { IconYouTube, IconTikTok, IconInstagram, IconFacebook } from '../components/icons.js';
+import { IconFacebook, IconThreads, IconReddit, IconX } from '../components/icons.js';
 import { IconSend } from '@tabler/icons-react';
-import type { Platform } from '@social-auto/shared';
+import type { Platform } from '../lib/api.js';
 
 const PLATFORM_ICON: Record<Platform, JSX.Element> = {
-  youtube: <IconYouTube className="h-4 w-4" />,
-  tiktok: <IconTikTok className="h-4 w-4" />,
-  instagram: <IconInstagram className="h-4 w-4" />,
   facebook: <IconFacebook className="h-4 w-4" />,
+  threads: <IconThreads className="h-4 w-4" />,
+  reddit: <IconReddit className="h-4 w-4" />,
+  x: <IconX className="h-4 w-4" />,
 };
 
 const STATUS_LABEL: Record<CommentRow['reply_status'], string> = {
@@ -143,7 +143,7 @@ export function CommentsPage(): JSX.Element {
       }),
   });
 
-  const replyable = (accounts.data?.accounts ?? []).filter((a) => a.platform !== 'tiktok');
+  const replyable = (accounts.data?.accounts ?? []).filter((a) => (a.platform === 'facebook' || a.platform === 'threads'));
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 pb-24 pt-6">

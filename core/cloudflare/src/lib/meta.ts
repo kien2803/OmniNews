@@ -1,8 +1,8 @@
 import type { Env } from '../env';
 
-/** Minimal Meta Graph API readers — fetch-based, Workers-safe.
- *  Page access tokens stored on the account row authenticate both the
- *  Facebook Page edges and the linked Instagram Business account edges. */
+/** Minimal Meta Graph API client — fetch-based, Workers-safe.
+ *  Page access tokens stored on the account row authenticate the Facebook
+ *  Page edges (feed posts, photos, comments). */
 
 const GRAPH_BASE = 'https://graph.facebook.com';
 
@@ -26,63 +26,73 @@ async function graphGet<T>(env: Env, path: string, accessToken: string, params: 
   return json;
 }
 
-export interface FacebookReel {
-  id?: string;
-  description?: string;
-  created_time?: string;
-  length?: number;
-  permalink?: string;
-  views?: number;
-  like_count?: number;
-  comments_count?: number;
-  thumbnails?: { data?: Array<{ uri?: string; is_preferred?: boolean }> };
+async function graphPost<T>(env: Env, path: string, accessToken: string, params: Record<string, string>): Promise<T> {
+  const res = await fetch(`${GRAPH_BASE}/${apiVersion(env)}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ access_token: accessToken, ...params }),
+  });
+  const json = (await res.json()) as T & GraphError;
+  if (!res.ok || json.error) {
+    throw new Error(`meta_api: ${json.error?.code ?? res.status} ${json.error?.message ?? res.statusText}`.trim());
+  }
+  return json;
 }
 
-/** Reels published on a Facebook Page — `/{page-id}/video_reels`.
- *  `views`/`like_count`/`comments_count` are requested opportunistically;
- *  Graph omits fields the token's permissions can't see, so missing
- *  stats land as null rather than failing the whole list. */
-export async function listFacebookReels(pageId: string, accessToken: string, env: Env, limit = 25): Promise<FacebookReel[]> {
-  const json = await graphGet<{ data?: FacebookReel[] }>(
+export interface FacebookPost {
+  id?: string;
+  message?: string;
+  created_time?: string;
+  permalink_url?: string;
+  full_picture?: string;
+  reactions?: { summary?: { total_count?: number } };
+  comments?: { summary?: { total_count?: number } };
+}
+
+/** Posts published on a Facebook Page — `/{page-id}/published_posts`.
+ *  Reaction/comment totals ride along as summaries (one request). */
+export async function listFacebookPosts(pageId: string, accessToken: string, env: Env, limit = 25): Promise<FacebookPost[]> {
+  const json = await graphGet<{ data?: FacebookPost[] }>(
     env,
-    `/${pageId}/video_reels`,
+    `/${pageId}/published_posts`,
     accessToken,
     {
-      fields: 'id,description,created_time,length,permalink,views,like_count,comments_count,thumbnails',
+      fields: 'id,message,created_time,permalink_url,full_picture,reactions.summary(true).limit(0),comments.summary(true).limit(0)',
       limit: String(limit),
     },
   );
   return json.data ?? [];
 }
 
-export interface InstagramMedia {
-  id?: string;
-  caption?: string;
-  media_type?: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
-  media_product_type?: 'FEED' | 'REELS' | 'STORY' | 'AD';
-  permalink?: string;
-  thumbnail_url?: string;
-  timestamp?: string;
-  like_count?: number;
-  comments_count?: number;
-  // Insights-backed fields are not part of /media; views need a separate
-  // insights call per item — skipped to keep this endpoint one request.
-}
-
-/** Reels (+ video posts) published on an Instagram Business account —
- *  `/{ig-user-id}/media` filtered to REELS/VIDEO client-side. */
-export async function listInstagramReels(igUserId: string, accessToken: string, env: Env, limit = 25): Promise<InstagramMedia[]> {
-  const json = await graphGet<{ data?: InstagramMedia[] }>(
-    env,
-    `/${igUserId}/media`,
-    accessToken,
-    {
-      fields: 'id,caption,media_type,media_product_type,permalink,thumbnail_url,timestamp,like_count,comments_count',
-      limit: String(Math.min(limit * 2, 100)), // over-fetch — some rows filter out
-    },
-  );
-  const reels = (json.data ?? []).filter(
-    (m) => m.media_product_type === 'REELS' || (m.media_product_type == null && m.media_type === 'VIDEO'),
-  );
-  return reels.slice(0, limit);
+/** Publish a text/link post to a Facebook Page feed. Returns the post id. */
+export async function publishFacebookPost(
+  env: Env,
+  pageId: string,
+  accessToken: string,
+  input: { message: string; link?: string; images?: string[] },
+): Promise<{ id: string }> {
+  const images = (input.images ?? []).filter(Boolean);
+  if (images.length) {
+    // Attach images as unpublished photos, then reference them from the
+    // feed post — the only way Graph accepts multi-photo posts.
+    const attached: string[] = [];
+    for (const url of images.slice(0, 10)) {
+      const photo = await graphPost<{ id?: string }>(
+        env,
+        `/${pageId}/photos`,
+        accessToken,
+        { url, published: 'false' },
+      );
+      if (photo.id) attached.push(photo.id);
+    }
+    const params: Record<string, string> = { message: input.message };
+    attached.forEach((id, i) => {
+      params[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
+    });
+    if (input.link) params.link = input.link;
+    return graphPost<{ id: string }>(env, `/${pageId}/feed`, accessToken, params);
+  }
+  const params: Record<string, string> = { message: input.message };
+  if (input.link) params.link = input.link;
+  return graphPost<{ id: string }>(env, `/${pageId}/feed`, accessToken, params);
 }

@@ -2,13 +2,12 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { AccountsRepo } from '../repos/accounts';
 import { userIdFromToken } from '../lib/auth';
-import { encrypt, decrypt } from '../lib/crypto';
+import { encrypt } from '../lib/crypto';
 import { generatePKCE } from '../lib/pkce';
+import type { Platform } from '../repos/types';
 import type { Env } from '../env';
 
 export const oauthRoutes = new Hono<{ Bindings: Env }>();
-
-const SCOPES = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
 
 function cookieOpts(env: Env) {
   const secure = env.WEB_ORIGIN.startsWith('https://');
@@ -21,237 +20,84 @@ async function cookieUserId(c: { req: { raw: Request }; env: Env }): Promise<str
   return userIdFromToken(c, t);
 }
 
-oauthRoutes.get('/auth/youtube/start', (c) => {
-  if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_REDIRECT_URI) {
-    return c.json({ error: 'Google OAuth not configured' }, 503);
-  }
-  const state = crypto.randomUUID();
-  setCookie(c, 'oauth_state', state, cookieOpts(c.env));
-  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  url.searchParams.set('client_id', c.env.GOOGLE_CLIENT_ID);
-  url.searchParams.set('redirect_uri', c.env.GOOGLE_REDIRECT_URI);
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', SCOPES);
-  url.searchParams.set('access_type', 'offline');
-  url.searchParams.set('prompt', 'consent');
-  url.searchParams.set('state', state);
-  return c.redirect(url.toString());
-});
-
-oauthRoutes.get('/auth/callback', async (c) => {
-  const { code, state, error } = c.req.query() as { code?: string; state?: string; error?: string };
+/** Shared callback preflight: state check + session cookie → userId. */
+async function callbackPreflight(c: {
+  req: { query: () => Record<string, string | undefined>; raw: Request };
+  env: Env;
+  redirect: (u: string) => Response;
+}) {
+  const { code, state, error } = c.req.query();
   const savedState = getCookie({ req: c.req } as never, 'oauth_state');
-  deleteCookie(c, 'oauth_state', { path: '/auth' });
+  deleteCookie(c as never, 'oauth_state', { path: '/auth' });
   const origin = c.env.WEB_ORIGIN;
-  if (error) return c.redirect(`${origin}/accounts?error=${encodeURIComponent(error)}`);
-  if (!code || !state || state !== savedState) return c.redirect(`${origin}/accounts?error=state_mismatch`);
-
-  const userId = await cookieUserId(c);
-  deleteCookie(c, 'oauth_token', { path: '/auth' });
-  if (!userId) return c.redirect(`${origin}/login`);
-
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: c.env.GOOGLE_CLIENT_ID!,
-      client_secret: c.env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri: c.env.GOOGLE_REDIRECT_URI!,
-      grant_type: 'authorization_code',
-    }),
-  });
-  const tokens = (await res.json()) as { access_token?: string; refresh_token?: string; error?: string };
-  if (!tokens.access_token || !tokens.refresh_token) {
-    return c.redirect(`${origin}/accounts?error=${encodeURIComponent(tokens.error ?? 'token_exchange_failed')}`);
+  if (error) return { error: c.redirect(`${origin}/accounts?error=${encodeURIComponent(error)}`) } as const;
+  if (!code || !state || state !== savedState) {
+    return { error: c.redirect(`${origin}/accounts?error=state_mismatch`) } as const;
   }
+  const userId = await cookieUserId(c as never);
+  deleteCookie(c as never, 'oauth_token', { path: '/auth' });
+  if (!userId) return { error: c.redirect(`${origin}/login`) } as const;
+  return { code, userId, origin } as const;
+}
 
-  const chRes = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true', {
-    headers: { authorization: `Bearer ${tokens.access_token}` },
-  });
-  const ch = (await chRes.json()) as {
-    items?: Array<{
-      id: string;
-      snippet: { title: string; customUrl?: string; thumbnails?: Record<string, { url?: string }> };
-      statistics?: { subscriberCount?: string; viewCount?: string; videoCount?: string };
-    }>;
-  };
-  const channel = ch.items?.[0];
-  if (!channel) return c.redirect(`${origin}/accounts?error=no_youtube_channel`);
-
-  // Persist the channel snapshot on connect so the row lands with real
-  // stats instead of waiting for a manual sync click.
-  const t = channel.snippet.thumbnails ?? {};
-  const handle = channel.snippet.customUrl ?? '';
-  const stat = channel.statistics ?? {};
-  const snapshot = {
-    channel_handle: handle ? (handle.startsWith('@') ? handle : `@${handle}`) : '',
-    avatar_url: t.high?.url ?? t.medium?.url ?? t.default?.url ?? '',
-    subscribers: stat.subscriberCount != null ? Number(stat.subscriberCount) : null,
-    views: stat.viewCount != null ? Number(stat.viewCount) : null,
-    video_count: stat.videoCount != null ? Number(stat.videoCount) : null,
-    last_sync_at: Date.now(),
-  };
-
+/** Upsert one connected account row; redirects when the external account
+ *  already belongs to a different user. */
+async function upsertAccount(
+  c: { env: Env },
+  userId: string,
+  input: {
+    platform: Platform;
+    externalId: string;
+    displayName: string;
+    accessToken: string | null;
+    refreshToken: string;
+    expiresAt: number | null;
+    channelHandle?: string;
+    avatarUrl?: string;
+  },
+): Promise<{ id: string } | { error: 'account_owned_by_other_user' }> {
   const accounts = new AccountsRepo(c.env.DB);
-  const encAccess = await encrypt(tokens.access_token, c.env.TOKEN_ENCRYPTION_KEY);
-  const encRefresh = await encrypt(tokens.refresh_token, c.env.TOKEN_ENCRYPTION_KEY);
-  const existing = await accounts.findByPlatformExternal('youtube', channel.id);
-  if (existing && existing.user_id !== userId) {
-    return c.redirect(`${origin}/accounts?error=account_owned_by_other_user`);
-  }
+  const encRefresh = await encrypt(input.refreshToken, c.env.TOKEN_ENCRYPTION_KEY);
+  const encAccess = input.accessToken ? await encrypt(input.accessToken, c.env.TOKEN_ENCRYPTION_KEY) : null;
+  const existing = await accounts.findByPlatformExternal(input.platform, input.externalId);
   if (existing) {
-    await c.env.DB.prepare('UPDATE accounts SET oauth_access_token = ?, oauth_refresh_token = ?, status = ? WHERE id = ?')
-      .bind(encAccess, encRefresh, 'active', existing.id).run();
-    await accounts.updateChannelSnapshot(existing.id, snapshot);
-  } else {
-    const row = await accounts.insert({
-      user_id: userId,
-      platform: 'youtube',
-      external_id: channel.id,
-      display_name: channel.snippet.title,
-      oauth_refresh_token: encRefresh,
-      oauth_access_token: encAccess,
+    if (existing.user_id !== userId) return { error: 'account_owned_by_other_user' };
+    await accounts.updateTokens(existing.id, {
+      access_token: encAccess ?? undefined,
+      refresh_token: encRefresh,
+      expires_at: input.expiresAt,
     });
-    await accounts.updateChannelSnapshot(row.id, snapshot);
-  }
-  return c.redirect(`${origin}/accounts?connected=youtube`);
-});
-
-oauthRoutes.get('/auth/youtube/status', async (c) => {
-  const h = c.req.header('authorization');
-  if (!h?.startsWith('Bearer ')) return c.json({ connected: false }, 401);
-  let userId: string;
-  userId = (await userIdFromToken(c, h.slice(7))) ?? ''; if (!userId) return c.json({ connected: false }, 401);
-  const list = await new AccountsRepo(c.env.DB).listByPlatform('youtube', userId);
-  return c.json({ connected: list.length > 0, configured: !!c.env.GOOGLE_CLIENT_ID, accounts: list });
-});
-
-// ──────────────────────────────────────────────────────────────────────────
-// TikTok OAuth (Login Kit + PKCE S256)
-// ──────────────────────────────────────────────────────────────────────────
-
-// video.list powers the per-account video library (GET /accounts/:id/videos).
-// Accounts connected before this scope was added must re-auth to grant it.
-const TIKTOK_SCOPES = 'user.info.basic,video.upload,video.publish,video.list';
-const TIKTOK_AUTHORIZE = 'https://www.tiktok.com/v2/auth/authorize/';
-const TIKTOK_TOKEN = 'https://open.tiktokapis.com/v2/oauth/token/';
-const TIKTOK_USERINFO = 'https://open.tiktokapis.com/v2/user/info/';
-
-oauthRoutes.get('/auth/tiktok/start', async (c) => {
-  if (!c.env.TIKTOK_CLIENT_KEY || !c.env.TIKTOK_REDIRECT_URI) {
-    return c.json({ error: 'TikTok OAuth not configured' }, 503);
-  }
-  const state = crypto.randomUUID();
-  const { verifier, challenge } = await generatePKCE();
-  const opts = cookieOpts(c.env);
-  setCookie(c, 'oauth_state', state, opts);
-  setCookie(c, 'tiktok_code_verifier', verifier, opts);
-  const url = new URL(TIKTOK_AUTHORIZE);
-  url.searchParams.set('client_key', c.env.TIKTOK_CLIENT_KEY);
-  url.searchParams.set('scope', TIKTOK_SCOPES);
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('redirect_uri', c.env.TIKTOK_REDIRECT_URI);
-  url.searchParams.set('state', state);
-  url.searchParams.set('code_challenge', challenge);
-  url.searchParams.set('code_challenge_method', 'S256');
-  return c.redirect(url.toString());
-});
-
-oauthRoutes.get('/auth/tiktok/callback', async (c) => {
-  const { code, state, error } = c.req.query() as { code?: string; state?: string; error?: string };
-  const savedState = getCookie({ req: c.req } as never, 'oauth_state');
-  const verifier = getCookie({ req: c.req } as never, 'tiktok_code_verifier');
-  deleteCookie(c, 'oauth_state', { path: '/auth' });
-  deleteCookie(c, 'tiktok_code_verifier', { path: '/auth' });
-  const origin = c.env.WEB_ORIGIN;
-  if (error) return c.redirect(`${origin}/accounts?error=${encodeURIComponent(error)}`);
-  if (!code || !state || state !== savedState) return c.redirect(`${origin}/accounts?error=state_mismatch`);
-  if (!verifier) return c.redirect(`${origin}/accounts?error=missing_code_verifier`);
-
-  const userId = await cookieUserId(c);
-  deleteCookie(c, 'oauth_token', { path: '/auth' });
-  if (!userId) return c.redirect(`${origin}/login`);
-
-  const tokenRes = await fetch(TIKTOK_TOKEN, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_key: c.env.TIKTOK_CLIENT_KEY!,
-      client_secret: c.env.TIKTOK_CLIENT_SECRET!,
-      code,
-      grant_type: 'authorization_code',
-      redirect_uri: c.env.TIKTOK_REDIRECT_URI!,
-      code_verifier: verifier,
-    }),
-  });
-  const tokens = (await tokenRes.json()) as {
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-    open_id?: string;
-    error?: string;
-  };
-  if (!tokens.access_token || !tokens.refresh_token || !tokens.open_id) {
-    return c.redirect(`${origin}/accounts?error=${encodeURIComponent(tokens.error ?? 'token_exchange_failed')}`);
-  }
-
-  const userRes = await fetch(`${TIKTOK_USERINFO}?fields=open_id,display_name,avatar_url`, {
-    headers: { authorization: `Bearer ${tokens.access_token}` },
-  });
-  const userJson = (await userRes.json()) as {
-    data?: { user?: { open_id: string; display_name?: string; avatar_url?: string } };
-  };
-  const user = userJson.data?.user;
-  if (!user?.open_id) return c.redirect(`${origin}/accounts?error=no_tiktok_user`);
-
-  const accounts = new AccountsRepo(c.env.DB);
-  const encAccess = await encrypt(tokens.access_token, c.env.TOKEN_ENCRYPTION_KEY);
-  const encRefresh = await encrypt(tokens.refresh_token, c.env.TOKEN_ENCRYPTION_KEY);
-  const expiresAt = Date.now() + (tokens.expires_in ?? 86400) * 1000;
-  const existing = await accounts.findByPlatformExternal('tiktok', user.open_id);
-  if (existing && existing.user_id !== userId) {
-    return c.redirect(`${origin}/accounts?error=account_owned_by_other_user`);
-  }
-  if (existing) {
-    await accounts.updateTokens(existing.id, { access_token: encAccess, refresh_token: encRefresh, expires_at: expiresAt });
-    await accounts.updateDisplayName(existing.id, user.display_name ?? 'TikTok User');
+    await accounts.updateDisplayName(existing.id, input.displayName);
     await accounts.updateStatus(existing.id, 'active');
-    if (user.avatar_url) await accounts.updateChannelSnapshot(existing.id, { avatar_url: user.avatar_url });
-    return c.redirect(`${origin}/accounts?connected=tiktok&account=${existing.id}`);
+    await accounts.updateChannelSnapshot(existing.id, {
+      channel_handle: input.channelHandle ?? '',
+      avatar_url: input.avatarUrl ?? '',
+      last_sync_at: Date.now(),
+    });
+    return { id: existing.id };
   }
   const row = await accounts.insert({
     user_id: userId,
-    platform: 'tiktok',
-    external_id: user.open_id,
-    display_name: user.display_name ?? 'TikTok User',
+    platform: input.platform,
+    external_id: input.externalId,
+    display_name: input.displayName,
     oauth_refresh_token: encRefresh,
     oauth_access_token: encAccess,
-    token_expires_at: expiresAt,
+    token_expires_at: input.expiresAt,
   });
-  if (user.avatar_url) await accounts.updateChannelSnapshot(row.id, { avatar_url: user.avatar_url });
-  return c.redirect(`${origin}/accounts?connected=tiktok&account=${row.id}`);
-});
-
-// ──────────────────────────────────────────────────────────────────────────
-// Meta OAuth (Facebook Pages + linked Instagram business accounts)
-// ──────────────────────────────────────────────────────────────────────────
-
-const META_SCOPES = [
-  'public_profile', 'email', 'pages_show_list', 'pages_manage_posts',
-  'pages_read_engagement', 'instagram_basic', 'instagram_content_publish',
-].join(',');
-
-function metaDialogUrl(c: { env: Env }, state: string): string {
-  const v = c.env.META_API_VERSION || 'v24.0';
-  const url = new URL(`https://www.facebook.com/${v}/dialog/oauth`);
-  url.searchParams.set('client_id', c.env.META_APP_ID!);
-  url.searchParams.set('redirect_uri', c.env.META_REDIRECT_URI!);
-  url.searchParams.set('state', state);
-  url.searchParams.set('scope', META_SCOPES);
-  url.searchParams.set('response_type', 'code');
-  return url.toString();
+  await accounts.updateChannelSnapshot(row.id, {
+    channel_handle: input.channelHandle ?? '',
+    avatar_url: input.avatarUrl ?? '',
+    last_sync_at: Date.now(),
+  });
+  return { id: row.id };
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Facebook — Meta dialog → creates one row per managed Page.
+// ──────────────────────────────────────────────────────────────────────────
+
+const META_SCOPES = ['public_profile', 'pages_show_list', 'pages_manage_posts', 'pages_read_engagement'].join(',');
 
 function metaGraph(c: { env: Env }, path: string, params: Record<string, string>): string {
   const v = c.env.META_API_VERSION || 'v24.0';
@@ -260,34 +106,27 @@ function metaGraph(c: { env: Env }, path: string, params: Record<string, string>
   return url.toString();
 }
 
-async function metaStart(c: { env: Env; redirect: (u: string) => Response; json: (o: object, s?: number) => Response }) {
+oauthRoutes.get('/auth/facebook/start', (c) => {
   if (!c.env.META_APP_ID || !c.env.META_APP_SECRET || !c.env.META_REDIRECT_URI) {
-    return c.json({ error: 'Meta OAuth not configured' }, 503);
+    return c.json({ error: 'Facebook OAuth not configured' }, 503);
   }
   const state = crypto.randomUUID();
-  setCookie(c as never, 'oauth_state', state, cookieOpts(c.env));
-  return c.redirect(metaDialogUrl(c, state));
-}
-
-// Instagram + Facebook connect through the single Meta dialog — one flow
-// creates rows for every managed Page and its linked IG business account.
-oauthRoutes.get('/auth/meta/start', (c) => metaStart(c));
-oauthRoutes.get('/auth/instagram/start', (c) => metaStart(c));
-oauthRoutes.get('/auth/facebook/start', (c) => metaStart(c));
+  setCookie(c, 'oauth_state', state, cookieOpts(c.env));
+  const v = c.env.META_API_VERSION || 'v24.0';
+  const url = new URL(`https://www.facebook.com/${v}/dialog/oauth`);
+  url.searchParams.set('client_id', c.env.META_APP_ID);
+  url.searchParams.set('redirect_uri', c.env.META_REDIRECT_URI);
+  url.searchParams.set('state', state);
+  url.searchParams.set('scope', META_SCOPES);
+  url.searchParams.set('response_type', 'code');
+  return c.redirect(url.toString());
+});
 
 oauthRoutes.get('/auth/meta/callback', async (c) => {
-  const { code, state, error } = c.req.query() as { code?: string; state?: string; error?: string };
-  const savedState = getCookie({ req: c.req } as never, 'oauth_state');
-  deleteCookie(c, 'oauth_state', { path: '/auth' });
-  const origin = c.env.WEB_ORIGIN;
-  if (error) return c.redirect(`${origin}/accounts?error=${encodeURIComponent(error)}`);
-  if (!code || !state || state !== savedState) return c.redirect(`${origin}/accounts?error=state_mismatch`);
+  const pre = await callbackPreflight(c);
+  if ('error' in pre) return pre.error;
+  const { code, userId, origin } = pre;
 
-  const userId = await cookieUserId(c);
-  deleteCookie(c, 'oauth_token', { path: '/auth' });
-  if (!userId) return c.redirect(`${origin}/login`);
-
-  // Exchange code → short-lived token → long-lived token (60 days).
   const exRes = await fetch(
     metaGraph(c, '/oauth/access_token', {
       client_id: c.env.META_APP_ID!,
@@ -323,113 +162,284 @@ oauthRoutes.get('/auth/meta/callback', async (c) => {
   const pagesRes = await fetch(
     metaGraph(c, '/me/accounts', {
       access_token: durable,
-      fields: 'id,name,access_token,picture,instagram_business_account{id,username,profile_picture_url}',
+      fields: 'id,name,access_token,picture',
     }),
   );
   const pagesJson = (await pagesRes.json()) as {
-    data?: Array<{
-      id: string;
-      name?: string;
-      access_token?: string;
-      picture?: { data?: { url?: string } };
-      instagram_business_account?: { id: string; username?: string; profile_picture_url?: string };
-    }>;
+    data?: Array<{ id?: string; name?: string; access_token?: string; picture?: { data?: { url?: string } } }>;
   };
   const pages = (pagesJson.data ?? []).filter((p) => p.id && p.access_token);
   if (!pages.length) return c.redirect(`${origin}/accounts?error=no_pages`);
 
-  const accounts = new AccountsRepo(c.env.DB);
   const insertedIds: string[] = [];
   for (const p of pages) {
-    const rows: Array<{ platform: 'facebook' | 'instagram'; externalId: string; name: string; avatar?: string; token: string }> = [
-      { platform: 'facebook', externalId: p.id, name: p.name ?? p.id, avatar: p.picture?.data?.url, token: p.access_token! },
-    ];
-    if (p.instagram_business_account?.id) {
-      rows.push({
-        platform: 'instagram',
-        externalId: p.instagram_business_account.id,
-        name: p.instagram_business_account.username
-          ? `@${p.instagram_business_account.username}`
-          : p.instagram_business_account.id,
-        avatar: p.instagram_business_account.profile_picture_url ?? p.picture?.data?.url,
-        token: p.access_token!,
-      });
-    }
-    for (const r of rows) {
-      const encAccess = await encrypt(r.token, c.env.TOKEN_ENCRYPTION_KEY);
-      const encRefresh = await encrypt(`meta-refresh-${r.externalId}`, c.env.TOKEN_ENCRYPTION_KEY);
-      const existing = await accounts.findByPlatformExternal(r.platform, r.externalId);
-      if (existing) {
-        if (existing.user_id !== userId) {
-          return c.redirect(`${origin}/accounts?error=account_owned_by_other_user`);
-        }
-        await accounts.updateTokens(existing.id, { access_token: encAccess, refresh_token: encRefresh, expires_at: expiresAt });
-        await accounts.updateDisplayName(existing.id, r.name);
-        await accounts.updateStatus(existing.id, 'active');
-        if (r.avatar) await accounts.updateChannelSnapshot(existing.id, { avatar_url: r.avatar });
-        insertedIds.push(existing.id);
-      } else {
-        const row = await accounts.insert({
-          user_id: userId,
-          platform: r.platform,
-          external_id: r.externalId,
-          display_name: r.name,
-          oauth_refresh_token: encRefresh,
-          oauth_access_token: encAccess,
-          token_expires_at: expiresAt,
-        });
-        if (r.avatar) await accounts.updateChannelSnapshot(row.id, { avatar_url: r.avatar });
-        insertedIds.push(row.id);
-      }
-    }
+    const r = await upsertAccount(c, userId, {
+      platform: 'facebook',
+      externalId: p.id!,
+      displayName: p.name ?? p.id!,
+      accessToken: p.access_token!,
+      // Page tokens can't OAuth-refresh — the placeholder marks the row as
+      // "reconnect required" once token_expires_at passes.
+      refreshToken: `facebook-page-${p.id}`,
+      expiresAt,
+      channelHandle: p.name ?? '',
+      avatarUrl: p.picture?.data?.url,
+    });
+    if ('error' in r) return c.redirect(`${origin}/accounts?error=${r.error}`);
+    insertedIds.push(r.id);
   }
-  return c.redirect(`${origin}/accounts?connected=meta&accounts=${insertedIds.join(',')}`);
+  return c.redirect(`${origin}/accounts?connected=facebook&accounts=${insertedIds.join(',')}`);
 });
 
 // ──────────────────────────────────────────────────────────────────────────
-// Per-platform status — bearer-auth, user-scoped. TikTok validates live via
-// user.info; Meta platforms return stored state (token is page-scoped, the
-// /me check would say little about a specific page).
+// Threads — Meta's Threads API (separate app credentials + long-lived token).
 // ──────────────────────────────────────────────────────────────────────────
 
-async function statusUserId(c: { req: { header: (n: string) => string | undefined }; env: Env }): Promise<string | null> {
-  const h = c.req.header('authorization');
-  if (!h?.startsWith('Bearer ')) return null;
-  return userIdFromToken(c, h.slice(7));
+const THREADS_SCOPES = 'threads_basic,threads_content_publish';
+
+oauthRoutes.get('/auth/threads/start', (c) => {
+  if (!c.env.THREADS_APP_ID || !c.env.THREADS_APP_SECRET || !c.env.THREADS_REDIRECT_URI) {
+    return c.json({ error: 'Threads OAuth not configured' }, 503);
+  }
+  const state = crypto.randomUUID();
+  setCookie(c, 'oauth_state', state, cookieOpts(c.env));
+  const url = new URL('https://threads.net/oauth/authorize');
+  url.searchParams.set('client_id', c.env.THREADS_APP_ID);
+  url.searchParams.set('redirect_uri', c.env.THREADS_REDIRECT_URI);
+  url.searchParams.set('scope', THREADS_SCOPES);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('state', state);
+  return c.redirect(url.toString());
+});
+
+oauthRoutes.get('/auth/threads/callback', async (c) => {
+  const pre = await callbackPreflight(c);
+  if ('error' in pre) return pre.error;
+  const { code, userId, origin } = pre;
+
+  const tokenRes = await fetch('https://graph.threads.net/oauth/access_token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: c.env.THREADS_APP_ID!,
+      client_secret: c.env.THREADS_APP_SECRET!,
+      grant_type: 'authorization_code',
+      redirect_uri: c.env.THREADS_REDIRECT_URI!,
+      code,
+    }),
+  });
+  const short = (await tokenRes.json()) as { access_token?: string; user_id?: number };
+  if (!tokenRes.ok || !short.access_token) {
+    return c.redirect(`${origin}/accounts?error=token_exchange_failed`);
+  }
+
+  // Short-lived (~1h) → long-lived (~60d) token.
+  let durable = short.access_token;
+  let expiresAt: number | null = null;
+  try {
+    const llRes = await fetch(
+      `https://graph.threads.net/access_token?grant_type=th_exchange_token&client_secret=${encodeURIComponent(c.env.THREADS_APP_SECRET!)}&access_token=${encodeURIComponent(short.access_token)}`,
+    );
+    const ll = (await llRes.json()) as { access_token?: string; expires_in?: number };
+    if (ll.access_token) {
+      durable = ll.access_token;
+      expiresAt = ll.expires_in ? Date.now() + ll.expires_in * 1000 : null;
+    }
+  } catch {
+    /* short-lived fallback is fine */
+  }
+
+  const meRes = await fetch(
+    `https://graph.threads.net/v1.0/me?fields=id,username,threads_profile_picture_url&access_token=${encodeURIComponent(durable)}`,
+  );
+  const me = (await meRes.json()) as { id?: string; username?: string; threads_profile_picture_url?: string };
+  if (!me.id) return c.redirect(`${origin}/accounts?error=no_threads_user`);
+
+  const r = await upsertAccount(c, userId, {
+    platform: 'threads',
+    externalId: me.id,
+    displayName: me.username ? `@${me.username}` : me.id,
+    accessToken: durable,
+    // The long-lived token doubles as the refresh input (th_refresh_token
+    // exchanges a current token, not a separate refresh grant).
+    refreshToken: durable,
+    expiresAt,
+    channelHandle: me.username ?? '',
+    avatarUrl: me.threads_profile_picture_url,
+  });
+  if ('error' in r) return c.redirect(`${origin}/accounts?error=${r.error}`);
+  return c.redirect(`${origin}/accounts?connected=threads&account=${r.id}`);
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Reddit — OAuth2 with permanent duration (submit to the user's profile).
+// ──────────────────────────────────────────────────────────────────────────
+
+const REDDIT_SCOPES = 'identity submit read';
+
+function redditBasic(env: Env): string {
+  return `Basic ${btoa(`${env.REDDIT_CLIENT_ID}:${env.REDDIT_CLIENT_SECRET}`)}`;
 }
 
-oauthRoutes.get('/auth/tiktok/status', async (c) => {
-  const userId = await statusUserId(c);
-  if (!userId) return c.json({ connected: false }, 401);
-  const rows = await new AccountsRepo(c.env.DB).listByPlatform('tiktok', userId);
-  if (!rows.length) return c.json({ connected: false, configured: !!c.env.TIKTOK_CLIENT_KEY, accounts: [] });
-  const accounts = [];
-  for (const row of rows) {
-    let status = row.status;
-    if (status === 'active' && row.oauth_access_token) {
-      try {
-        const token = await decrypt(row.oauth_access_token, c.env.TOKEN_ENCRYPTION_KEY);
-        const res = await fetch(`${TIKTOK_USERINFO}?fields=open_id`, {
-          headers: { authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) status = 'expired';
-      } catch {
-        status = 'expired';
-      }
-    }
-    accounts.push({ id: row.id, platform: 'tiktok', display_name: row.display_name, status });
+oauthRoutes.get('/auth/reddit/start', (c) => {
+  if (!c.env.REDDIT_CLIENT_ID || !c.env.REDDIT_CLIENT_SECRET || !c.env.REDDIT_REDIRECT_URI) {
+    return c.json({ error: 'Reddit OAuth not configured' }, 503);
   }
-  return c.json({ connected: true, configured: !!c.env.TIKTOK_CLIENT_KEY, accounts });
+  const state = crypto.randomUUID();
+  setCookie(c, 'oauth_state', state, cookieOpts(c.env));
+  const url = new URL('https://www.reddit.com/api/v1/authorize');
+  url.searchParams.set('client_id', c.env.REDDIT_CLIENT_ID);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('state', state);
+  url.searchParams.set('redirect_uri', c.env.REDDIT_REDIRECT_URI);
+  url.searchParams.set('duration', 'permanent');
+  url.searchParams.set('scope', REDDIT_SCOPES);
+  return c.redirect(url.toString());
 });
 
-for (const platform of ['instagram', 'facebook'] as const) {
+oauthRoutes.get('/auth/reddit/callback', async (c) => {
+  const pre = await callbackPreflight(c);
+  if ('error' in pre) return pre.error;
+  const { code, userId, origin } = pre;
+
+  const tokenRes = await fetch('https://www.reddit.com/api/v1/access_token', {
+    method: 'POST',
+    headers: {
+      authorization: redditBasic(c.env),
+      'content-type': 'application/x-www-form-urlencoded',
+      'user-agent': 'omninews/1.0',
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: c.env.REDDIT_REDIRECT_URI!,
+    }),
+  });
+  const tokens = (await tokenRes.json()) as {
+    access_token?: string; refresh_token?: string; expires_in?: number; error?: string;
+  };
+  if (!tokenRes.ok || !tokens.access_token || !tokens.refresh_token) {
+    return c.redirect(`${origin}/accounts?error=${encodeURIComponent(tokens.error ?? 'token_exchange_failed')}`);
+  }
+
+  const meRes = await fetch('https://oauth.reddit.com/api/v1/me', {
+    headers: { authorization: `Bearer ${tokens.access_token}`, 'user-agent': 'omninews/1.0' },
+  });
+  const me = (await meRes.json()) as { id?: string; name?: string; icon_img?: string };
+  if (!me.name) return c.redirect(`${origin}/accounts?error=no_reddit_user`);
+
+  const r = await upsertAccount(c, userId, {
+    platform: 'reddit',
+    externalId: me.name,
+    displayName: `u/${me.name}`,
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token,
+    expiresAt: Date.now() + (tokens.expires_in ?? 3600) * 1000,
+    channelHandle: me.name,
+    avatarUrl: me.icon_img?.split('?')[0],
+  });
+  if ('error' in r) return c.redirect(`${origin}/accounts?error=${r.error}`);
+  return c.redirect(`${origin}/accounts?connected=reddit&account=${r.id}`);
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// X (Twitter) — OAuth2 + PKCE S256; offline.access yields a refresh token.
+// ──────────────────────────────────────────────────────────────────────────
+
+const X_SCOPES = 'tweet.read tweet.write users.read offline.access';
+
+oauthRoutes.get('/auth/x/start', async (c) => {
+  if (!c.env.X_CLIENT_ID || !c.env.X_CLIENT_SECRET || !c.env.X_REDIRECT_URI) {
+    return c.json({ error: 'X OAuth not configured' }, 503);
+  }
+  const state = crypto.randomUUID();
+  const { verifier, challenge } = await generatePKCE();
+  const opts = cookieOpts(c.env);
+  setCookie(c, 'oauth_state', state, opts);
+  setCookie(c, 'x_code_verifier', verifier, opts);
+  const url = new URL('https://twitter.com/i/oauth2/authorize');
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('client_id', c.env.X_CLIENT_ID);
+  url.searchParams.set('redirect_uri', c.env.X_REDIRECT_URI);
+  url.searchParams.set('scope', X_SCOPES);
+  url.searchParams.set('state', state);
+  url.searchParams.set('code_challenge', challenge);
+  url.searchParams.set('code_challenge_method', 'S256');
+  return c.redirect(url.toString());
+});
+
+oauthRoutes.get('/auth/x/callback', async (c) => {
+  const verifier = getCookie({ req: c.req } as never, 'x_code_verifier');
+  deleteCookie(c, 'x_code_verifier', { path: '/auth' });
+  const pre = await callbackPreflight(c);
+  if ('error' in pre) return pre.error;
+  const { code, userId, origin } = pre;
+  if (!verifier) return c.redirect(`${origin}/accounts?error=missing_code_verifier`);
+
+  const tokenRes = await fetch('https://api.twitter.com/2/oauth2/token', {
+    method: 'POST',
+    headers: {
+      authorization: `Basic ${btoa(`${c.env.X_CLIENT_ID}:${c.env.X_CLIENT_SECRET}`)}`,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: c.env.X_REDIRECT_URI!,
+      code_verifier: verifier,
+    }),
+  });
+  const tokens = (await tokenRes.json()) as {
+    access_token?: string; refresh_token?: string; expires_in?: number; error?: string;
+  };
+  if (!tokenRes.ok || !tokens.access_token) {
+    return c.redirect(`${origin}/accounts?error=${encodeURIComponent(tokens.error ?? 'token_exchange_failed')}`);
+  }
+
+  const meRes = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url', {
+    headers: { authorization: `Bearer ${tokens.access_token}` },
+  });
+  const meJson = (await meRes.json()) as { data?: { id?: string; username?: string; name?: string; profile_image_url?: string } };
+  const me = meJson.data;
+  if (!me?.id) return c.redirect(`${origin}/accounts?error=no_x_user`);
+
+  const r = await upsertAccount(c, userId, {
+    platform: 'x',
+    externalId: me.id,
+    displayName: me.username ? `@${me.username}` : (me.name ?? me.id),
+    accessToken: tokens.access_token,
+    // X only issues a refresh token when offline.access was granted —
+    // without it the row dies at expiry and the user reconnects.
+    refreshToken: tokens.refresh_token ?? `x-norefresh-${me.id}`,
+    expiresAt: Date.now() + (tokens.expires_in ?? 7200) * 1000,
+    channelHandle: me.username ?? '',
+    avatarUrl: me.profile_image_url,
+  });
+  if ('error' in r) return c.redirect(`${origin}/accounts?error=${r.error}`);
+  return c.redirect(`${origin}/accounts?connected=x&account=${r.id}`);
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Per-platform status — bearer-auth, user-scoped.
+// ──────────────────────────────────────────────────────────────────────────
+
+const PLATFORM_CONFIGURED: Record<Platform, (env: Env) => boolean> = {
+  facebook: (env) => !!env.META_APP_ID,
+  threads: (env) => !!env.THREADS_APP_ID,
+  reddit: (env) => !!env.REDDIT_CLIENT_ID,
+  x: (env) => !!env.X_CLIENT_ID,
+};
+
+for (const platform of ['facebook', 'threads', 'reddit', 'x'] as const) {
   oauthRoutes.get(`/auth/${platform}/status`, async (c) => {
-    const userId = await statusUserId(c);
+    const h = c.req.header('authorization');
+    if (!h?.startsWith('Bearer ')) return c.json({ connected: false }, 401);
+    const userId = await userIdFromToken(c, h.slice(7));
     if (!userId) return c.json({ connected: false }, 401);
     const rows = await new AccountsRepo(c.env.DB).listByPlatform(platform, userId);
     return c.json({
       connected: rows.length > 0,
-      configured: !!c.env.META_APP_ID,
+      configured: PLATFORM_CONFIGURED[platform](c.env),
       accounts: rows.map((r) => ({ id: r.id, platform, display_name: r.display_name, status: r.status })),
     });
   });

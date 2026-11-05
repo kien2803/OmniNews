@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { ScheduledPostsRepo } from '../repos/scheduledPosts';
-import { VideosRepo } from '../repos/videos';
+import { ArticlesRepo } from '../repos/articles';
 import { AccountsRepo } from '../repos/accounts';
 import { bearerUserId } from '../lib/auth';
 import type { ScheduledPostStatus, Visibility } from '../repos/types';
@@ -14,8 +14,8 @@ const STATUSES: ReadonlySet<string> = new Set(['draft', 'pending', 'uploading', 
 const VISIBILITIES: ReadonlySet<string> = new Set(['public', 'unlisted', 'private']);
 
 interface ScheduleBody {
-  video_id: string;
-  caption: string;
+  article_id: string;
+  caption?: string;
   per_platform_caption?: Record<string, string>;
   scheduled_at: number;
   visibility?: Visibility;
@@ -39,7 +39,7 @@ scheduleRoutes.post('/schedule', async (c) => {
     : body.account_id
       ? [body.account_id]
       : [];
-  if (!body.video_id) return c.json({ error: 'video_id required' }, 400);
+  if (!body.article_id) return c.json({ error: 'article_id required' }, 400);
   if (!accountIds.length) return c.json({ error: 'account_ids required' }, 400);
   if (accountIds.length > MAX_ACCOUNTS_PER_SCHEDULE) {
     return c.json({ error: `too_many_accounts: maximum ${MAX_ACCOUNTS_PER_SCHEDULE}` }, 400);
@@ -52,16 +52,19 @@ scheduleRoutes.post('/schedule', async (c) => {
   if (!draft && scheduledAt < Date.now() + SCHEDULE_LEAD_MS) {
     return c.json({ error: `scheduled_at must be at least ${SCHEDULE_LEAD_MS / 1000}s in the future` }, 400);
   }
-  if (!body.caption || body.caption.length > CAPTION_MAX) {
-    return c.json({ error: `caption required, max ${CAPTION_MAX} chars` }, 400);
+  // Caption is an optional text override — when empty, the publisher falls
+  // back to the article's title + body.
+  const caption = (body.caption ?? '').trim();
+  if (caption.length > CAPTION_MAX) {
+    return c.json({ error: `caption too long, max ${CAPTION_MAX} chars` }, 400);
   }
   if (body.visibility !== undefined && !VISIBILITIES.has(body.visibility)) {
     return c.json({ error: 'invalid_visibility' }, 400);
   }
 
-  const video = await new VideosRepo(c.env.DB).findById(body.video_id);
-  if (!video) return c.json({ error: 'video_not_found' }, 404);
-  if (video.user_id !== userId) return c.json({ error: 'video_not_owned' }, 403);
+  const article = await new ArticlesRepo(c.env.DB).findById(body.article_id);
+  if (!article) return c.json({ error: 'article_not_found' }, 404);
+  if (article.user_id !== userId) return c.json({ error: 'article_not_owned' }, 403);
 
   const accounts = new AccountsRepo(c.env.DB);
   const perPlatform = body.per_platform_caption ?? {};
@@ -72,7 +75,7 @@ scheduleRoutes.post('/schedule', async (c) => {
     if (!acc) return c.json({ error: `account_not_found: ${accId}` }, 404);
     if (acc.user_id !== userId) return c.json({ error: `account_not_owned: ${accId}` }, 403);
     if (acc.status !== 'active') return c.json({ error: `account_not_active: ${accId}` }, 400);
-    if ((perPlatform[accId] ?? body.caption).length > CAPTION_MAX) {
+    if ((perPlatform[accId] ?? caption).length > CAPTION_MAX) {
       return c.json({ error: `caption_too_long: ${accId}` }, 400);
     }
   }
@@ -83,12 +86,12 @@ scheduleRoutes.post('/schedule', async (c) => {
     created.push(
       await posts.insert({
         user_id: userId,
-        video_id: body.video_id,
+        article_id: body.article_id,
         account_id: accId,
         scheduled_at: scheduledAt,
         status: draft ? 'draft' : 'pending',
         notes: body.notes ?? null,
-        caption: perPlatform[accId] ?? body.caption,
+        caption: perPlatform[accId] ?? caption,
         per_platform_caption: perPlatform[accId] ?? null,
         visibility: body.visibility ?? 'private',
       }),
@@ -220,7 +223,7 @@ scheduleRoutes.get('/history', async (c) => {
   if (q.platform) {
     const rows = await new AccountsRepo(c.env.DB).list({
       userId,
-      platform: q.platform as 'youtube' | 'tiktok' | 'instagram' | 'facebook',
+      platform: q.platform as 'facebook' | 'threads' | 'reddit' | 'x',
     });
     platformAccountIds = new Set(rows.map((a) => a.id));
     if (!platformAccountIds.size) return c.json({ posts: [] });
@@ -235,24 +238,4 @@ scheduleRoutes.get('/history', async (c) => {
     ? posts.filter((p) => platformAccountIds!.has(p.account_id))
     : posts;
   return c.json({ posts: filtered });
-});
-
-// Videos list — the schedule modal's video picker. Wire shape strips the
-// storage path down to a basename; full keys never leave the server.
-scheduleRoutes.get('/videos', async (c) => {
-  const userId = await bearerUserId(c);
-  if (!userId) return c.json({ error: 'Unauthorized' }, 401);
-  const rows = await new VideosRepo(c.env.DB).list(userId, 200);
-  return c.json({
-    videos: rows.map((v) => ({
-      id: v.id,
-      sha256: v.sha256,
-      size_bytes: v.size_bytes,
-      duration_sec: v.duration_sec,
-      mime: v.mime,
-      filename: v.file_path.split('/').pop() ?? v.file_path,
-      has_thumbnail: !!v.thumbnail_path,
-      created_at: v.created_at,
-    })),
-  });
 });

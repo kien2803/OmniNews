@@ -133,7 +133,7 @@ export function SettingsPage() {
       <section className="card space-y-4 border-red-200 p-5 dark:border-red-900">
         <h2 className="text-lg font-medium text-red-600 dark:text-red-400">Delete account</h2>
         <p className="text-sm text-ink-subtle dark:text-stone-400">
-          Permanently deletes your account, connected social accounts, videos, and scheduled posts.
+          Permanently deletes your account, connected social accounts, articles, and scheduled posts.
           This cannot be undone. Type <strong>DELETE</strong> to confirm.
         </p>
         <input

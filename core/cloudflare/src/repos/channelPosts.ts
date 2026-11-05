@@ -1,26 +1,26 @@
-import type { ChannelVideoItem } from '../lib/channelVideos';
-import type { ChannelVideoRow, Platform } from './types';
+import type { ChannelPostItem } from '../lib/channelPosts';
+import type { ChannelPostRow, Platform } from './types';
 
 const LIST_LIMIT = 50;
 
 /**
- * Persisted per-account video library — rows written by manual sync
- * (POST /accounts/:id/videos/sync) and read by GET /accounts/:id/videos.
+ * Persisted per-account post library — rows written by manual sync
+ * (POST /accounts/:id/posts/sync) and read by GET /accounts/:id/posts.
  */
-export class ChannelVideosRepo {
+export class ChannelPostsRepo {
   constructor(private db: D1Database) {}
 
   /** Upsert the freshly fetched list, then prune rows the platform no
-   *  longer returns (deleted/privated videos disappear from the library). */
+   *  longer returns (deleted/removed posts disappear from the library). */
   async replaceForAccount(
     account: { id: string; user_id: string; platform: Platform },
-    items: ChannelVideoItem[],
+    items: ChannelPostItem[],
     syncedAt: number,
   ): Promise<void> {
     const stmts = items.map((v) =>
       this.db
         .prepare(
-          `INSERT INTO channel_videos
+          `INSERT INTO channel_posts
            (id, account_id, user_id, platform, external_id, title, thumbnail_url, url,
             published_at, duration_sec, view_count, like_count, comment_count, synced_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -56,26 +56,26 @@ export class ChannelVideosRepo {
     // the platform dropped it, so drop our copy.
     stmts.push(
       this.db
-        .prepare('DELETE FROM channel_videos WHERE account_id = ? AND synced_at < ?')
+        .prepare('DELETE FROM channel_posts WHERE account_id = ? AND synced_at < ?')
         .bind(account.id, syncedAt),
     );
     await this.db.batch(stmts);
   }
 
-  async listByAccount(accountId: string): Promise<ChannelVideoRow[]> {
+  async listByAccount(accountId: string): Promise<ChannelPostRow[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT * FROM channel_videos WHERE account_id = ?
+        `SELECT * FROM channel_posts WHERE account_id = ?
          ORDER BY published_at DESC LIMIT ?`,
       )
       .bind(accountId, LIST_LIMIT)
-      .all<ChannelVideoRow>();
+      .all<ChannelPostRow>();
     return results ?? [];
   }
 
   async lastSyncAt(accountId: string): Promise<number | null> {
     const row = await this.db
-      .prepare('SELECT MAX(synced_at) AS t FROM channel_videos WHERE account_id = ?')
+      .prepare('SELECT MAX(synced_at) AS t FROM channel_posts WHERE account_id = ?')
       .bind(accountId)
       .first<{ t: number | null }>();
     return row?.t ?? null;

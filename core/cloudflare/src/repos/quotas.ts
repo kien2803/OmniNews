@@ -1,17 +1,17 @@
 import type { Platform } from './types';
 
 export const PLATFORM_DAILY_LIMIT: Record<Platform, number> = {
-  youtube: 10_000,
-  tiktok: 100,
-  instagram: 200,
   facebook: 200,
+  threads: 100,
+  reddit: 50,
+  x: 50,
 };
 
 export const UNITS_PER_UPLOAD: Record<Platform, number> = {
-  youtube: 1600, // YouTube Data API v3 videos.insert cost
-  tiktok: 1,
-  instagram: 1,
   facebook: 1,
+  threads: 1,
+  reddit: 1,
+  x: 1,
 };
 
 function utcDayStart(now: number): number {

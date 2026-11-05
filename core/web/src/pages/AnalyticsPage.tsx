@@ -6,7 +6,7 @@ import {
   api,
   type AccountRow,
   type AnalyticsRow,
-  type ChannelVideo,
+  type ChannelPost,
 } from '../lib/api.js';
 import { Card, CardBody, CardHeader } from '../components/ui/Card.js';
 import { Field, Select } from '../components/ui/Field.js';
@@ -221,7 +221,7 @@ function FullSnapshot({ account }: { account: AccountRow }) {
       <CardBody className="space-y-3">
         <div className="grid grid-cols-3 gap-2">
           <SnapshotTile label="Subs" value={formatBigNumber(channel.subscribers)} />
-          <SnapshotTile label="Videos" value={formatBigNumber(channel.video_count)} />
+          <SnapshotTile label="Posts" value={formatBigNumber(channel.video_count)} />
           <SnapshotTile label="Views" value={formatBigNumber(channel.views)} />
         </div>
         <div className="grid grid-cols-3 gap-2">
@@ -234,36 +234,36 @@ function FullSnapshot({ account }: { account: AccountRow }) {
   );
 }
 
-function VideoListCard({ accountId }: { accountId: string }) {
+function PostListCard({ accountId }: { accountId: string }) {
   const q = useQuery({
-    queryKey: ['channel-videos', accountId],
-    queryFn: () => api.listChannelVideos(accountId),
+    queryKey: ['channel-posts', accountId],
+    queryFn: () => api.listChannelPosts(accountId),
   });
-  const videos = q.data?.videos ?? [];
+  const posts = q.data?.posts ?? [];
   if (q.isLoading) return <Skeleton className="h-48 w-full" />;
   if (q.isError) {
     return (
       <EmptyState
         icon={<span>!</span>}
-        title="Couldn't load videos"
+        title="Couldn't load posts"
         description="Try again from the Sync button."
       />
     );
   }
-  if (videos.length === 0) {
+  if (posts.length === 0) {
     return (
       <EmptyState
         icon={<span>▶</span>}
-        title="No videos yet"
-        description="Sync will pull the latest uploads from YouTube."
+        title="No posts yet"
+        description="Sync will pull the latest posts from the platform."
       />
     );
   }
   return (
     <Card>
       <CardHeader
-        title="Recent videos"
-        description="Latest 10 uploads from this channel."
+        title="Recent posts"
+        description="Latest posts from this account."
       />
       <CardBody className="overflow-x-auto p-0">
         <table className="w-full text-sm">
@@ -273,12 +273,11 @@ function VideoListCard({ accountId }: { accountId: string }) {
               <th className="px-4 py-2 font-medium text-right">Views</th>
               <th className="px-4 py-2 font-medium text-right">Likes</th>
               <th className="px-4 py-2 font-medium text-right">Comments</th>
-              <th className="px-4 py-2 font-medium text-right">Duration</th>
-              <th className="px-4 py-2 font-medium">Published</th>
+                            <th className="px-4 py-2 font-medium">Published</th>
             </tr>
           </thead>
           <tbody>
-            {videos.map((v: ChannelVideo) => (
+            {posts.map((v: ChannelPost) => (
               <tr key={v.id} className="border-t border-stone-200 dark:border-stone-800">
                 <td className="max-w-md truncate px-4 py-2">
                   <a
@@ -298,9 +297,6 @@ function VideoListCard({ accountId }: { accountId: string }) {
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
                   {formatBigNumber(v.comment_count)}
-                </td>
-                <td className="px-4 py-2 text-right tabular-nums">
-                  {formatAvgWatch(v.duration_sec)}
                 </td>
                 <td className="px-4 py-2 text-xs text-ink-muted dark:text-stone-400">
                   {dayjs(v.published_at).format('MMM D, YYYY')}
@@ -329,7 +325,7 @@ function SingleAccountAnalytics({
     colorClass: k,
   }));
   const syncMut = useMutation({
-    mutationFn: () => api.syncAccount(account.id),
+    mutationFn: () => api.syncChannelPosts(account.id),
     onSuccess: () => {
       track('analytics sync', { account_id: account.id, platform: account.platform });
       toast.push({
@@ -339,7 +335,7 @@ function SingleAccountAnalytics({
       });
       void qc.invalidateQueries({ queryKey: ['accounts'] });
       void qc.invalidateQueries({ queryKey: ['accounts-list'] });
-      void qc.invalidateQueries({ queryKey: ['channel-videos', account.id] });
+      void qc.invalidateQueries({ queryKey: ['channel-posts', account.id] });
     },
     onError: (err) =>
       toast.push({
@@ -382,7 +378,7 @@ function SingleAccountAnalytics({
         </CardBody>
       </Card>
 
-      <VideoListCard accountId={account.id} />
+      <PostListCard accountId={account.id} />
     </div>
   );
 }

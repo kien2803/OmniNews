@@ -9,7 +9,7 @@ import { EmptyState } from '../components/ui/EmptyState.js';
 import { Skeleton } from '../components/ui/Skeleton.js';
 import { Button } from '../components/ui/Button.js';
 import { PostDetailDrawer } from '../components/PostDetailDrawer.js';
-import type { ScheduledPostRow } from '@social-auto/shared';
+import type { ScheduledPostRow } from '../lib/api.js';
 
 /** Kanban over post lifecycle — simple words, matching scheduled_posts.status. */
 const LANES: { id: string; label: string; statuses: ScheduledPostRow['status'][] }[] = [
@@ -122,14 +122,16 @@ export function PipelinePage() {
     onError: (e) => toast.push({ tone: 'error', title: 'Retry failed', description: e instanceof Error ? e.message : 'unknown_error' }),
   });
   const duplicate = useMutation({
-    mutationFn: (p: ScheduledPostRow) =>
-      api.createSchedule({
-        video_id: p.video_id,
+    mutationFn: (p: ScheduledPostRow) => {
+      if (!p.article_id) return Promise.reject(new Error('legacy post has no article'));
+      return api.createSchedule({
+        article_id: p.article_id,
         account_ids: [p.account_id],
         caption: p.caption,
         visibility: p.visibility,
         scheduled_at: Math.max(p.scheduled_at + 24 * 3600_000, Date.now() + 3600_000),
-      }),
+      });
+    },
     onSuccess: () => { toast.push({ tone: 'success', title: 'Post duplicated (+24h)' }); invalidate(); },
     onError: (e) => toast.push({ tone: 'error', title: 'Duplicate failed', description: e instanceof Error ? e.message : 'unknown_error' }),
   });
@@ -252,7 +254,7 @@ export function PipelinePage() {
         <PostDetailDrawer
           post={detail}
           account={accountById.get(detail.account_id)}
-          video={undefined}
+          article={undefined}
           onClose={() => setDetail(null)}
           onChanged={invalidate}
         />

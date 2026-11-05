@@ -1,5 +1,5 @@
-/** Row types mirroring the sql.js schema — D1 returns rows as objects. */
-export type Platform = 'youtube' | 'tiktok' | 'instagram' | 'facebook';
+/** Row types mirroring the D1 schema — D1 returns rows as objects. */
+export type Platform = 'facebook' | 'threads' | 'reddit' | 'x';
 export type Visibility = 'public' | 'unlisted' | 'private';
 export type AccountStatus = 'active' | 'expired' | 'revoked';
 export type ScheduledPostStatus = 'draft' | 'pending' | 'uploading' | 'published' | 'failed' | 'dead';
@@ -30,22 +30,24 @@ export interface AccountRow {
   last_sync_at: number | null;
 }
 
-export interface VideoRow {
+/** A schedulable piece of written content — the library item that replaces
+ *  videos. `images` is a JSON-encoded string array of public image URLs. */
+export interface ArticleRow {
   id: string;
   user_id: string;
-  file_path: string;
-  sha256: string;
-  size_bytes: number;
-  duration_sec: number | null;
-  mime: string;
-  thumbnail_path: string | null;
+  title: string;
+  body: string;
+  link_url: string;
+  /** JSON string — parse to string[] before use. */
+  images: string;
   created_at: number;
+  updated_at: number;
 }
 
 export interface ScheduledPostRow {
   id: string;
   user_id: string;
-  video_id: string;
+  article_id: string | null;
   account_id: string;
   scheduled_at: number;
   caption: string;
@@ -62,15 +64,17 @@ export interface ScheduledPostRow {
   updated_at: number;
 }
 
-/** Joined row used by the queue consumer — post + its account + video. */
+/** Joined row used by the queue consumer — post + its account + article. */
 export interface ClaimedPost extends ScheduledPostRow {
   account: AccountRow;
-  video: VideoRow;
+  article: ArticleRow;
 }
 
-/** A video synced from an account's published library (0007_channel_videos).
- *  `external_id` is the platform's video id — unique per account. */
-export interface ChannelVideoRow {
+/** A post synced from an account's published library (0008 renamed
+ *  channel_videos → channel_posts). `external_id` is the platform's post id
+ *  — unique per account. `duration_sec` stays for schema compat; always
+ *  null for text platforms. */
+export interface ChannelPostRow {
   id: string;
   account_id: string;
   user_id: string;
