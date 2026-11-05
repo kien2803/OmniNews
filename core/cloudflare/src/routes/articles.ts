@@ -111,11 +111,18 @@ articleRoutes.patch('/articles/:id', async (c) => {
   if ('error' in r) return r.error;
   const body = (await c.req.json().catch(() => null)) as ArticleBody | null;
   if (!body) return c.json({ error: 'invalid_body' }, 400);
+  let existingImages: string[] = [];
+  try {
+    const arr = JSON.parse(r.row.images || '[]') as unknown;
+    if (Array.isArray(arr)) existingImages = arr.filter((u): u is string => typeof u === 'string');
+  } catch {
+    /* corrupt JSON → treat as empty */
+  }
   const merged = {
     title: body.title ?? r.row.title,
     body: body.body ?? r.row.body,
     link_url: body.link_url ?? r.row.link_url,
-    images: body.images !== undefined ? body.images : (JSON.parse(r.row.images || '[]') as string[]),
+    images: body.images !== undefined ? body.images : existingImages,
   };
   const input = validateArticleInput(merged);
   if ('error' in input) return c.json({ error: input.error }, 400);

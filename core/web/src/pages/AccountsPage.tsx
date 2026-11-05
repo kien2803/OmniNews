@@ -131,6 +131,7 @@ function EditAccountModal({
   const toast = useToast();
   const qc = useQueryClient();
   const [displayName, setDisplayName] = useState(account.display_name);
+  const [target, setTarget] = useState(account.metadata?.target ?? '');
   const [touched, setTouched] = useState(false);
 
   const trimmedName = displayName.trim();
@@ -168,7 +169,7 @@ function EditAccountModal({
       setTouched(true);
       return;
     }
-    update.mutate({ display_name: trimmedName });
+    update.mutate({ display_name: trimmedName, target: account.platform === 'reddit' ? target.trim() : undefined });
   };
 
   return (
@@ -209,6 +210,16 @@ function EditAccountModal({
             aria-invalid={Boolean(nameError)}
           />
         </Field>
+        {account.platform === 'reddit' && (
+          <Field label="Subreddit" hint="e.g. news or r/news — empty posts to your own profile">
+            <TextInput
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              maxLength={100}
+              placeholder="r/news"
+            />
+          </Field>
+        )}
         <p className="rounded border border-stone-200 bg-surface-muted px-3 py-2 text-xs text-ink-muted dark:border-stone-700 dark:bg-[#211d18] dark:text-stone-400">
           Credentials (OAuth tokens, passwords, API keys) are never edited here and cannot be
           changed through the UI.

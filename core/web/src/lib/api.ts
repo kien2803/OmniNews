@@ -14,6 +14,14 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   x: 'X',
 };
 
+/** Publish-time text caps — mirrors worker lib/platforms.ts. */
+export const PLATFORM_TEXT_LIMITS: Record<Platform, number> = {
+  facebook: 63206,
+  threads: 500,
+  reddit: 40000,
+  x: 280,
+};
+
 export type ScheduledPostStatus = 'draft' | 'pending' | 'uploading' | 'published' | 'failed' | 'dead';
 export type Visibility = 'public' | 'unlisted' | 'private';
 
@@ -76,6 +84,8 @@ export interface AccountMetadata {
   language_code: AccountLanguageCode;
   purpose: string;
   link: string;
+  /** Per-account publish target — subreddit for reddit ('news' / 'r/news'). */
+  target: string;
 }
 
 export interface AccountChannelSnapshot {
@@ -172,6 +182,7 @@ export interface UpdateAccountInput {
   language_code?: AccountLanguageCode;
   purpose?: string | null;
   link?: string | null;
+  target?: string | null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -120,11 +120,22 @@ export class ScheduledPostsRepo {
       .run();
   }
 
-  /** Back to pending when a queue message is retried (queue handles backoff). */
-  async releaseToPending(id: string, error: string, retryCount: number): Promise<void> {
+  /** Back to pending when a queue message is retried. `next_retry_at`
+   *  stops the cron claim loop from re-grabbing the post before the queue
+   *  redelivers — without it the queue's backoff is bypassed. */
+  async releaseToPending(id: string, error: string, retryCount: number, nextRetryAt?: number): Promise<void> {
     await this.db
-      .prepare(`UPDATE scheduled_posts SET status = 'pending', last_error = ?, retry_count = ?, updated_at = ? WHERE id = ?`)
-      .bind(error.slice(0, 1000), retryCount, Date.now(), id)
+      .prepare(`UPDATE scheduled_posts SET status = 'pending', last_error = ?, retry_count = ?, next_retry_at = ?, updated_at = ? WHERE id = ?`)
+      .bind(error.slice(0, 1000), retryCount, nextRetryAt ?? null, Date.now(), id)
+      .run();
+  }
+
+  /** Defer a due post to a later time without touching retry counters —
+   *  used when the daily quota is exhausted (retry tomorrow, not in 1m). */
+  async deferUntil(id: string, reason: string, nextRetryAt: number): Promise<void> {
+    await this.db
+      .prepare(`UPDATE scheduled_posts SET status = 'pending', last_error = ?, next_retry_at = ?, updated_at = ? WHERE id = ?`)
+      .bind(reason.slice(0, 1000), nextRetryAt, Date.now(), id)
       .run();
   }
 

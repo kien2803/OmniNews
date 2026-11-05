@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { api, type ArticleInput, type ArticleWire } from '../lib/api.js';
+import { api, PLATFORM_TEXT_LIMITS, type ArticleInput, type ArticleWire, type Platform } from '../lib/api.js';
 import { useAccounts, type AccountInfo } from '../lib/accounts.js';
 import { useToast } from '../components/ui/Toast.js';
 import { Button } from '../components/ui/Button.js';
@@ -235,7 +235,14 @@ export function ComposePage() {
 
       {/* 3 — caption */}
       <Section n={3} title="Caption override">
-        <Field label={perPlatform ? 'Shared caption (fallback)' : 'Caption'} hint={`${caption.length}/5000 — empty uses the article's title + body`}>
+        <Field
+          label={perPlatform ? 'Shared caption (fallback)' : 'Caption'}
+          hint={`${caption.length}/5000 — empty uses the article's title + body${
+            selectedAccounts.length
+              ? ` · limits: ${[...new Set(selectedAccounts.map((a) => `${a.platform} ${PLATFORM_TEXT_LIMITS[a.platform as Platform] ?? '—'}`))].join(', ')}`
+              : ''
+          }`}
+        >
           <TextArea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={5000} placeholder="Override the post text (optional)…" />
         </Field>
         <button type="button" className="mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-100"

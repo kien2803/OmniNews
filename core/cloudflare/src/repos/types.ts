@@ -19,6 +19,8 @@ export interface AccountRow {
   language_code: string;
   purpose: string;
   link: string;
+  /** Per-account publish target — subreddit for reddit ('news' / 'r/news'). */
+  target: string;
   channel_handle: string;
   avatar_url: string;
   subscribers: number | null;

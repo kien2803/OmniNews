@@ -132,11 +132,21 @@ export default {
         msg.ack();
         continue;
       }
+      // Daily platform cap — defer to next UTC midnight instead of
+      // burning queue retries on an error that can't succeed today.
+      const quotas = new QuotasRepo(env.DB);
+      if (!(await quotas.hasRemaining(post.account.platform))) {
+        const d = new Date();
+        const midnight = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) + 86_400_000;
+        await posts.deferUntil(postId, 'quota_exhausted', midnight);
+        msg.ack();
+        continue;
+      }
       try {
         const token = await usableAccessToken(env, new AccountsRepo(env.DB), post.account);
         const result = await publishPost(env, post, token);
         await posts.markPublished(postId, result.external_id);
-        await new QuotasRepo(env.DB).incrementUsage(post.account.platform, 1, Date.now(), post.user_id);
+        await quotas.incrementUsage(post.account.platform, 1, Date.now(), post.user_id);
         msg.ack();
       } catch (e) {
         const msgText = e instanceof Error ? e.message : String(e);
@@ -146,7 +156,11 @@ export default {
           msg.ack();
         } else {
           // Let the queue retry (bounded by max_retries → DLQ → dead).
-          await posts.releaseToPending(postId, msgText, (post.retry_count ?? 0) + 1);
+          // next_retry_at mirrors the queue backoff so the cron claim loop
+          // doesn't re-grab the post early and double-deliver it.
+          const attempt = (post.retry_count ?? 0) + 1;
+          const backoffMs = Math.min(60_000 * Math.pow(2, attempt - 1), 30 * 60_000);
+          await posts.releaseToPending(postId, msgText, attempt, Date.now() + backoffMs);
           msg.retry();
         }
       }

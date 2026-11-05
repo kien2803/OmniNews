@@ -109,9 +109,9 @@ export class AccountsRepo {
 
   async updateMetadata(
     id: string,
-    patch: Partial<Pick<AccountRow, 'content_category' | 'language_code' | 'purpose' | 'link'>>,
+    patch: Partial<Pick<AccountRow, 'content_category' | 'language_code' | 'purpose' | 'link' | 'target'>>,
   ): Promise<void> {
-    const cols = ['content_category', 'language_code', 'purpose', 'link'] as const;
+    const cols = ['content_category', 'language_code', 'purpose', 'link', 'target'] as const;
     const sets: string[] = [];
     const params: unknown[] = [];
     for (const c of cols) {

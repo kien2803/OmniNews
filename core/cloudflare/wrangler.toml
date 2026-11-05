@@ -65,4 +65,6 @@ X_REDIRECT_URI = "https://omnicast.trunkynw2803.workers.dev/auth/x/callback"
 # OAuth cookies are marked Secure whenever WEB_ORIGIN is https (cookieOpts
 # derives it) — SECURE_COOKIES was dead config here and has been removed.
 STORAGE_QUOTA_GB = "10"
+# Dev toggle: publishers return fake external ids without calling platforms.
+MOCK_PUBLISHERS = "false"
 META_API_VERSION = "v24.0"

@@ -30,6 +30,7 @@ function toWire(row: AccountRow) {
       language_code: row.language_code ?? '',
       purpose: row.purpose ?? '',
       link: row.link ?? '',
+      target: row.target ?? '',
     },
     channel: {
       channel_handle: row.channel_handle ?? '',
@@ -117,7 +118,8 @@ accountRoutes.patch('/accounts/:id', async (c) => {
     language_code?: string;
     purpose?: string | null;
     link?: string | null;
-    metadata?: { content_category?: string; language_code?: string; purpose?: string; link?: string };
+    target?: string | null;
+    metadata?: { content_category?: string; language_code?: string; purpose?: string; link?: string; target?: string };
   } | null;
   if (!body) return c.json({ error: 'invalid_body' }, 400);
   const accounts = new AccountsRepo(c.env.DB);
@@ -141,11 +143,13 @@ accountRoutes.patch('/accounts/:id', async (c) => {
   }
   if ((meta.purpose?.length ?? 0) > 500) return c.json({ error: 'purpose_too_long' }, 400);
   if ((meta.link?.length ?? 0) > 500) return c.json({ error: 'link_too_long' }, 400);
+  if ((meta.target?.length ?? 0) > 100) return c.json({ error: 'target_too_long' }, 400);
   await accounts.updateMetadata(r.row.id, {
     content_category: meta.content_category,
     language_code: meta.language_code,
     purpose: meta.purpose ?? undefined,
     link: meta.link ?? undefined,
+    target: meta.target ?? undefined,
   });
 
   return c.json(toWire((await accounts.findById(r.row.id))!));

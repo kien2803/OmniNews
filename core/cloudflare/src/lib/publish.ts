@@ -1,6 +1,7 @@
 import type { Env } from '../env';
-import type { ClaimedPost } from '../repos/types';
+import type { ClaimedPost, Platform } from '../repos/types';
 import { publishFacebookPost } from './meta';
+import { fitText, fitTitle } from './platforms';
 
 export interface PublishResult {
   external_id: string;
@@ -31,7 +32,8 @@ async function publishThreads(post: ClaimedPost, token: string): Promise<Publish
   const images = postImages(post);
   let text = postText(post);
   if (post.article.link_url) text = `${text}\n${post.article.link_url}`.trim();
-  if (text.length > 500) throw new Error('invalid_text: threads post exceeds 500 chars');
+  text = fitText('threads', text);
+  if (!text) throw new Error('invalid_text: empty threads post');
 
   const params: Record<string, string> = { access_token: token, text };
   if (images.length) {
@@ -61,21 +63,26 @@ async function publishThreads(post: ClaimedPost, token: string): Promise<Publish
 
 // ── Reddit ─────────────────────────────────────────────────────────────
 
+function redditTarget(post: ClaimedPost): string {
+  const t = post.account.target?.trim();
+  if (t) return t.startsWith('r/') || t.startsWith('u/') ? t : `r/${t}`;
+  const name = post.account.channel_handle || post.account.external_id;
+  return `u_${name}`;
+}
+
 async function publishReddit(post: ClaimedPost, token: string): Promise<PublishResult> {
-  const text = postText(post);
+  const text = fitText('reddit', postText(post));
   // Title comes from the article (or the first line of the text); Reddit
   // requires one and caps it at 300 chars.
-  const title = (post.article.title || text.split('\n')[0] || 'Post').slice(0, 300);
-  const name = post.account.channel_handle || post.account.external_id;
+  const title = fitTitle('reddit', post.article.title || text.split('\n')[0] || 'Post');
   const form = new URLSearchParams({
     api_type: 'json',
-    sr: `u_${name}`,
+    sr: redditTarget(post),
     title,
     kind: post.article.link_url ? 'link' : 'self',
   });
   if (post.article.link_url) {
     form.set('url', post.article.link_url);
-    if (post.article.body && !post.caption) form.set('text', post.article.body);
   } else {
     form.set('text', text);
   }
@@ -105,7 +112,7 @@ async function publishX(post: ClaimedPost, token: string): Promise<PublishResult
   if (post.article.link_url && !text.includes(post.article.link_url)) {
     text = `${text}\n${post.article.link_url}`.trim();
   }
-  if (text.length > 280) text = `${text.slice(0, 277)}…`;
+  text = fitText('x', text);
   if (!text) throw new Error('invalid_text: empty tweet');
   const res = await fetch('https://api.twitter.com/2/tweets', {
     method: 'POST',
@@ -121,13 +128,20 @@ async function publishX(post: ClaimedPost, token: string): Promise<PublishResult
 
 // ── Dispatch ───────────────────────────────────────────────────────────
 
+const MOCKABLE: Platform[] = ['facebook', 'threads', 'reddit', 'x'];
+
 /** Publish one claimed post to its account's platform. Throws on failure;
- *  the consumer classifies the error (retryable vs permanent). */
+ *  the consumer classifies the error (retryable vs permanent).
+ *  MOCK_PUBLISHERS=true short-circuits the platform call — for dev/E2E
+ *  before real OAuth credentials exist. */
 export async function publishPost(env: Env, post: ClaimedPost, accessToken: string): Promise<PublishResult> {
+  if (env.MOCK_PUBLISHERS === 'true' && MOCKABLE.includes(post.account.platform)) {
+    return { external_id: `mock_${post.account.platform}_${post.id}`, url: undefined };
+  }
   switch (post.account.platform) {
     case 'facebook': {
       const r = await publishFacebookPost(env, post.account.external_id, accessToken, {
-        message: postText(post),
+        message: fitText('facebook', postText(post)),
         link: post.article.link_url || undefined,
         images: postImages(post),
       });

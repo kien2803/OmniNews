@@ -10,6 +10,7 @@ export interface Env {
   WEB_ORIGIN: string;
   STORAGE_QUOTA_GB: string;
   META_API_VERSION: string;
+  MOCK_PUBLISHERS?: string;
 
   // Secrets (wrangler secret put)
   TOKEN_ENCRYPTION_KEY: string;
