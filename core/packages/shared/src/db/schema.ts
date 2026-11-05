@@ -180,7 +180,10 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
   next_retry_at INTEGER,
   is_dead INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  -- Appended last so SELECT * column order matches databases that got the
+  -- column via ALTER TABLE ADD COLUMN (migration 0012).
+  notes TEXT
 );
 
 CREATE TABLE IF NOT EXISTS quotas (
@@ -350,6 +353,16 @@ export const MIGRATIONS: readonly Migration[] = [
     phase: 'user-auth',
     statements: [
       "INSERT OR IGNORE INTO users (id, email, password_hash, name, created_at) VALUES ('default-user', 'default@localhost', '', 'Default User', CAST(strftime('%s','now') AS INTEGER) * 1000)",
+    ],
+  },
+  {
+    // ScheduledPostRow gained `notes` (per-post internal annotations) when
+    // the Cloudflare D1 backend added drafts & notes (0005_drafts_notes).
+    // Mirrors that column here so the sql.js schema stays in lock-step.
+    id: '0012-scheduled-posts-notes',
+    phase: 'drafts-notes',
+    statements: [
+      'ALTER TABLE scheduled_posts ADD COLUMN notes TEXT',
     ],
   },
 ];

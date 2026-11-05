@@ -339,4 +339,158 @@ describe('Schedule routes (T1.3)', () => {
     expect(body.by_status).toHaveProperty('pending');
     expect(body).toHaveProperty('published_last_7d');
   });
+
+  it('POST /schedule creates a draft with notes (no scheduled_at needed)', async () => {
+    const video = videos.insert({
+      user_id: 'test-user-id',
+      file_path: '/tmp/x.mp4',
+      sha256: 'g'.repeat(64),
+      size_bytes: 1024,
+      mime: 'video/mp4',
+    });
+    const acc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      display_name: 't',
+      oauth_refresh_token: encrypt('rt', TOKEN_KEY),
+      status: 'active',
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/schedule',
+      payload: {
+        video_id: video.id,
+        account_ids: [acc.id],
+        caption: 'draft post',
+        draft: true,
+        notes: 'launch v2',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.posts[0].status).toBe('draft');
+    expect(body.posts[0].notes).toBe('launch v2');
+  });
+
+  it('POST /schedule still rejects non-draft without scheduled_at', async () => {
+    const video = videos.insert({
+      user_id: 'test-user-id',
+      file_path: '/tmp/x.mp4',
+      sha256: 'h'.repeat(64),
+      size_bytes: 1024,
+      mime: 'video/mp4',
+    });
+    const acc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      display_name: 't',
+      oauth_refresh_token: encrypt('rt', TOKEN_KEY),
+      status: 'active',
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/schedule',
+      payload: { video_id: video.id, account_ids: [acc.id], caption: 'x' },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('PATCH /schedule/:id promotes a draft to pending via scheduled_at', async () => {
+    const video = videos.insert({
+      user_id: 'test-user-id',
+      file_path: '/tmp/x.mp4',
+      sha256: 'i'.repeat(64),
+      size_bytes: 1024,
+      mime: 'video/mp4',
+    });
+    const acc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      display_name: 't',
+      oauth_refresh_token: encrypt('rt', TOKEN_KEY),
+      status: 'active',
+    });
+    const created = posts.insert({
+      user_id: 'test-user-id',
+      video_id: video.id,
+      account_id: acc.id,
+      scheduled_at: Date.now(),
+      caption: 'orig',
+      status: 'draft',
+      notes: 'n',
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/schedule/${created.id}`,
+      payload: { scheduled_at: Date.now() + 5 * 60 * 1000 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe('pending');
+    expect(res.json().notes).toBe('n');
+  });
+
+  it('PATCH /schedule/:id schedule=true on draft without scheduled_at → 400', async () => {
+    const video = videos.insert({
+      user_id: 'test-user-id',
+      file_path: '/tmp/x.mp4',
+      sha256: 'j'.repeat(64),
+      size_bytes: 1024,
+      mime: 'video/mp4',
+    });
+    const acc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      display_name: 't',
+      oauth_refresh_token: encrypt('rt', TOKEN_KEY),
+      status: 'active',
+    });
+    const created = posts.insert({
+      user_id: 'test-user-id',
+      video_id: video.id,
+      account_id: acc.id,
+      scheduled_at: Date.now(),
+      caption: 'orig',
+      status: 'draft',
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/schedule/${created.id}`,
+      payload: { schedule: true },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('DELETE /schedule/:id removes a draft', async () => {
+    const video = videos.insert({
+      user_id: 'test-user-id',
+      file_path: '/tmp/x.mp4',
+      sha256: 'k'.repeat(64),
+      size_bytes: 1024,
+      mime: 'video/mp4',
+    });
+    const acc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      display_name: 't',
+      oauth_refresh_token: encrypt('rt', TOKEN_KEY),
+      status: 'active',
+    });
+    const created = posts.insert({
+      user_id: 'test-user-id',
+      video_id: video.id,
+      account_id: acc.id,
+      scheduled_at: Date.now(),
+      caption: 'c',
+      status: 'draft',
+    });
+
+    const res = await app.inject({ method: 'DELETE', url: `/schedule/${created.id}` });
+    expect(res.statusCode).toBe(200);
+    expect(posts.findById(created.id)).toBeNull();
+  });
 });

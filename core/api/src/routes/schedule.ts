@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Visibility } from '@social-auto/shared';
+import type { ScheduledPostStatus, Visibility } from '@social-auto/shared';
 import type { ScheduledPostsRepo } from '../repositories/scheduledPosts.js';
 import type { VideosRepo } from '../repositories/videos.js';
 import type { AccountsRepo } from '../repositories/accounts.js';
@@ -18,6 +18,8 @@ interface ScheduleBody {
   scheduled_at: number;
   caption: string;
   visibility?: Visibility;
+  draft?: boolean;
+  notes?: string;
 }
 
 const CAPTION_MAX = 5000;
@@ -33,6 +35,8 @@ interface MultiScheduleBody {
   per_platform_caption?: Record<string, string>;
   scheduled_at: number;
   visibility?: Visibility;
+  draft?: boolean;
+  notes?: string;
   account_ids: string[];
 }
 
@@ -43,8 +47,13 @@ function validateBase(body: ScheduleBody | MultiScheduleBody): string | null {
   } else if (!(body as ScheduleBody).account_id) {
     return 'account_id required';
   }
-  if (typeof body.scheduled_at !== 'number') return 'scheduled_at required (ms epoch)';
-  if (body.scheduled_at < Date.now() + SCHEDULE_LEAD_MS) {
+  // Drafts carry a placeholder timestamp (creation time) — they only gain a
+  // real air time when promoted to pending via PATCH.
+  const draft = body.draft === true;
+  const scheduledAt =
+    typeof body.scheduled_at === 'number' ? body.scheduled_at : draft ? Date.now() : NaN;
+  if (Number.isNaN(scheduledAt)) return 'scheduled_at required (ms epoch)';
+  if (!draft && scheduledAt < Date.now() + SCHEDULE_LEAD_MS) {
     return `scheduled_at must be at least ${SCHEDULE_LEAD_MS / 1000}s in the future`;
   }
   if (!body.caption || body.caption.length > CAPTION_MAX) {
@@ -103,6 +112,9 @@ export function registerScheduleRoutes(app: FastifyInstance, deps: ScheduleDeps)
         return reply.code(400).send({ error: `caption_too_long: ${accId}` });
       }
     }
+    const draft = body.draft === true;
+    const scheduledAt =
+      typeof body.scheduled_at === 'number' ? body.scheduled_at : draft ? Date.now() : NaN;
     const created = [];
     for (const accId of accountIds) {
       const caption = perPlatform[accId] ?? body.caption;
@@ -110,7 +122,9 @@ export function registerScheduleRoutes(app: FastifyInstance, deps: ScheduleDeps)
         user_id: userId,
         video_id: body.video_id,
         account_id: accId,
-        scheduled_at: body.scheduled_at,
+        scheduled_at: scheduledAt,
+        status: draft ? 'draft' : 'pending',
+        notes: body.notes ?? null,
         caption,
         per_platform_caption: perPlatform[accId] ?? null,
         visibility: body.visibility ?? 'private',
@@ -153,10 +167,10 @@ export function registerScheduleRoutes(app: FastifyInstance, deps: ScheduleDeps)
     if (post.user_id !== userId) {
       return reply.code(403).send({ error: 'access_denied' });
     }
-    if (post.status !== 'pending') {
+    if (post.status !== 'pending' && post.status !== 'draft') {
       return reply.code(400).send({ error: `cannot_edit_post_in_status_${post.status}` });
     }
-    const body = req.body as Partial<ScheduleBody>;
+    const body = req.body as Partial<ScheduleBody> & { notes?: string | null; schedule?: boolean };
     if (body.caption !== undefined && body.caption.length > CAPTION_MAX) {
       return reply.code(400).send({ error: 'caption_too_long' });
     }
@@ -166,10 +180,19 @@ export function registerScheduleRoutes(app: FastifyInstance, deps: ScheduleDeps)
     if (body.scheduled_at !== undefined && body.scheduled_at < Date.now() + SCHEDULE_LEAD_MS) {
       return reply.code(400).send({ error: 'scheduled_at_too_soon' });
     }
+    // Draft promotion: a draft becomes pending when the client gives it a
+    // time (schedule=true) — drafts may also be edited freely without that.
+    const promote =
+      post.status === 'draft' && (body.schedule === true || body.scheduled_at !== undefined);
+    if (promote && body.scheduled_at === undefined) {
+      return reply.code(400).send({ error: 'scheduled_at required to schedule a draft' });
+    }
     deps.posts.update(req.params.id, {
       caption: body.caption,
       scheduled_at: body.scheduled_at,
       visibility: body.visibility,
+      notes: body.notes,
+      status: promote ? 'pending' : undefined,
     });
     return deps.posts.findById(req.params.id);
   });
@@ -181,7 +204,7 @@ export function registerScheduleRoutes(app: FastifyInstance, deps: ScheduleDeps)
     if (post.user_id !== userId) {
       return reply.code(403).send({ error: 'access_denied' });
     }
-    if (post.status !== 'pending') {
+    if (post.status !== 'pending' && post.status !== 'draft') {
       return reply.code(400).send({ error: `cannot_delete_post_in_status_${post.status}` });
     }
     deps.posts.delete(req.params.id);
@@ -198,7 +221,7 @@ export function registerScheduleRoutes(app: FastifyInstance, deps: ScheduleDeps)
     const now = Date.now();
     const since = now - 7 * 24 * 60 * 60 * 1000;
     const posts = deps.posts.list({ userId });
-    const byStatus = { pending: 0, uploading: 0, published: 0, failed: 0, dead: 0 };
+    const byStatus: Record<ScheduledPostStatus, number> = { draft: 0, pending: 0, uploading: 0, published: 0, failed: 0, dead: 0 };
     let publishedLast7d = 0;
     for (const p of posts) {
       byStatus[p.status]++;

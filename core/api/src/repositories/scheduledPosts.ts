@@ -16,6 +16,8 @@ export interface NewScheduledPost {
   caption: string;
   per_platform_caption?: string | null;
   visibility?: Visibility;
+  status?: 'pending' | 'draft';
+  notes?: string | null;
 }
 
 /**
@@ -53,6 +55,7 @@ function rowToScheduledPost(row: unknown[]): ScheduledPostRow {
     is_dead: row[13] === 1 || row[13] === true,
     created_at: row[14] as number,
     updated_at: row[15] as number,
+    notes: (row[16] as string | null) ?? null,
   };
 }
 
@@ -83,21 +86,22 @@ function rowToSlimScheduledPost(row: unknown[]): ScheduledPostRow {
     caption: '',
     per_platform_caption: null,
     last_error: null,
+    notes: null,
   };
 }
 
 /**
  * Decoder for the joined SELECT in claimDuePosts. Column order is:
- *   sp.*  (16 columns)         → row[0..15]
- *   a.*   (23 columns)         → row[16..38]   (account row)
- *   v.*   (9  columns)         → row[39..47]   (video row)
+ *   sp.*  (17 columns)         → row[0..16]
+ *   a.*   (23 columns)         → row[17..39]   (account row)
+ *   v.*   (9  columns)         → row[40..48]   (video row)
  * Mirrors the order produced by AccountsRepo.rowToAccount and
  * VideosRepo.rowToVideo; updates here MUST stay in lock-step with those.
  */
 function rowToClaimedScheduledPost(row: unknown[]): ClaimedScheduledPost {
-  const sp = rowToScheduledPost(row.slice(0, 16));
-  const accountSlice = row.slice(16, 39);
-  const videoSlice = row.slice(39);
+  const sp = rowToScheduledPost(row.slice(0, 17));
+  const accountSlice = row.slice(17, 40);
+  const videoSlice = row.slice(40);
   return {
     ...sp,
     account: {
@@ -159,19 +163,20 @@ export class ScheduledPostsRepo {
       caption: input.caption,
       per_platform_caption: input.per_platform_caption ?? null,
       visibility: input.visibility ?? 'private',
-      status: 'pending',
+      status: input.status ?? 'pending',
       external_post_id: null,
       last_error: null,
       retry_count: 0,
       next_retry_at: null,
       is_dead: false,
+      notes: input.notes ?? null,
       created_at: Date.now(),
       updated_at: Date.now(),
     };
     this.db.raw.run(
       `INSERT INTO scheduled_posts
-       (id, user_id, video_id, account_id, scheduled_at, caption, per_platform_caption, visibility, status, external_post_id, last_error, retry_count, next_retry_at, is_dead, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, user_id, video_id, account_id, scheduled_at, caption, per_platform_caption, visibility, status, external_post_id, last_error, retry_count, next_retry_at, is_dead, created_at, updated_at, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         row.id,
         row.user_id,
@@ -189,6 +194,7 @@ export class ScheduledPostsRepo {
         row.is_dead ? 1 : 0,
         row.created_at,
         row.updated_at,
+        row.notes,
       ],
     );
     return row;
@@ -264,7 +270,7 @@ export class ScheduledPostsRepo {
       `SELECT id, user_id, video_id, account_id, scheduled_at, visibility, status,
               external_post_id, retry_count, next_retry_at, is_dead,
               created_at, updated_at, '' AS caption, NULL AS per_platform_caption,
-              NULL AS last_error
+              NULL AS last_error, NULL AS notes
        FROM scheduled_posts ${whereSql} ORDER BY scheduled_at DESC LIMIT ? OFFSET ?`,
       [...params, limit, offset] as (string | number | null)[],
     );
@@ -397,7 +403,7 @@ export class ScheduledPostsRepo {
     return this.rowsModified();
   }
 
-  update(id: string, patch: { caption?: string; scheduled_at?: number; visibility?: Visibility }): void {
+  update(id: string, patch: { caption?: string; scheduled_at?: number; visibility?: Visibility; notes?: string | null; status?: 'pending' | 'draft' }): void {
     const sets: string[] = [];
     const params: unknown[] = [];
     if (patch.caption !== undefined) {
@@ -411,6 +417,14 @@ export class ScheduledPostsRepo {
     if (patch.visibility !== undefined) {
       sets.push('visibility = ?');
       params.push(patch.visibility);
+    }
+    if (patch.notes !== undefined) {
+      sets.push('notes = ?');
+      params.push(patch.notes);
+    }
+    if (patch.status !== undefined) {
+      sets.push('status = ?');
+      params.push(patch.status);
     }
     if (!sets.length) return;
     sets.push('updated_at = ?');
@@ -432,6 +446,7 @@ export class ScheduledPostsRepo {
       userId ? [userId] : [],
     );
     const out: Record<ScheduledPostStatus, number> = {
+      draft: 0,
       pending: 0,
       uploading: 0,
       published: 0,
@@ -496,6 +511,7 @@ export class ScheduledPostsRepo {
       [accountId],
     );
     const out: Record<ScheduledPostStatus, number> = {
+      draft: 0,
       pending: 0,
       uploading: 0,
       published: 0,
@@ -536,6 +552,7 @@ export class ScheduledPostsRepo {
     last_published_at: number | null;
   }> {
     const zeroStatus = (): Record<ScheduledPostStatus, number> => ({
+      draft: 0,
       pending: 0,
       uploading: 0,
       published: 0,
