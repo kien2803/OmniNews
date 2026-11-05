@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import { openDB, type DB } from '../db.js';
 import { AccountsRepo } from '../repositories/accounts.js';
+import { ChannelVideosRepo } from '../repositories/channelVideos.js';
 import { ScheduledPostsRepo } from '../repositories/scheduledPosts.js';
 import { UsersRepo } from '../repositories/users.js';
 import { registerAccountRoutes } from './accounts.js';
@@ -27,6 +28,7 @@ async function buildAccountsTestApp(): Promise<BuiltApp> {
   const users = new UsersRepo(db);
   const accounts = new AccountsRepo(db);
   const posts = new ScheduledPostsRepo(db);
+  const channelVideos = new ChannelVideosRepo(db);
   const google = createMockGoogleClient();
   // Create test user
   users.insert({
@@ -41,6 +43,7 @@ async function buildAccountsTestApp(): Promise<BuiltApp> {
   registerAccountRoutes(app, {
     accounts,
     posts,
+    channelVideos,
     google,
     tokenEncryptionKey: TOKEN_KEY,
     authMiddleware: mockAuthMiddleware,
@@ -302,6 +305,7 @@ describe('Multi-account support — same platform, different channels', () => {
     registerAccountRoutes(app, {
       accounts,
       posts,
+      channelVideos: new ChannelVideosRepo(db),
       google: google as unknown as Parameters<typeof registerAccountRoutes>[1]['google'],
       tokenEncryptionKey: TOKEN_KEY,
       authMiddleware: mockAuthMiddleware,
@@ -388,5 +392,127 @@ describe('Cross-user isolation (accounts owned by another user)', () => {
   it('POST /:id/sync returns 403', async () => {
     const res = await app.inject({ method: 'POST', url: `/accounts/${otherAccountId}/sync` });
     expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('Account video library (GET + POST /accounts/:id/videos[/sync])', () => {
+  it('GET returns empty list + null synced_at before first sync', async () => {
+    const { app, accounts } = await buildAccountsTestApp();
+    const acc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      external_id: 'UC_x',
+      display_name: 'X',
+      oauth_refresh_token: encrypt('rt', TOKEN_KEY),
+      status: 'active',
+    });
+    const res = await app.inject({ method: 'GET', url: `/accounts/${acc.id}/videos` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ videos: [], synced_at: null });
+    await app.close();
+  });
+
+  it('sync persists items; GET serves them; re-sync prunes dropped items', async () => {
+    const app = Fastify({ logger: false });
+    const db: DB = await openDB(':memory:');
+    const users = new UsersRepo(db);
+    users.insert({ id: 'test-user-id', email: 't@e.com', password_hash: 'h', name: 'T' });
+    const accounts = new AccountsRepo(db);
+    const posts = new ScheduledPostsRepo(db);
+    const acc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      external_id: 'UC_x',
+      display_name: 'X',
+      oauth_refresh_token: encrypt('rt', TOKEN_KEY),
+      oauth_access_token: encrypt('at', TOKEN_KEY),
+      token_expires_at: Date.now() + 3600 * 1000,
+      status: 'active',
+    });
+    let library: { id: string; title: string; thumbnail_url: string; published_at: number; duration_sec: number | null; view_count: number | null; like_count: number | null; comment_count: number | null; url: string; }[] = [
+      { id: 'v1', title: 'One', thumbnail_url: '', published_at: 1000, duration_sec: 60, view_count: 10, like_count: 1, comment_count: 0, url: 'https://youtube.com/watch?v=v1' },
+      { id: 'v2', title: 'Two', thumbnail_url: '', published_at: 2000, duration_sec: 90, view_count: 20, like_count: 2, comment_count: 1, url: 'https://youtube.com/watch?v=v2' },
+    ];
+    const mockAuthMiddleware = async (req: any, _reply: any) => {
+      req.userId = 'test-user-id';
+    };
+    registerAccountRoutes(app, {
+      accounts,
+      posts,
+      channelVideos: new ChannelVideosRepo(db),
+      listChannelVideos: async () => library,
+      tokenEncryptionKey: TOKEN_KEY,
+      authMiddleware: mockAuthMiddleware,
+    });
+    await app.ready();
+
+    const sync1 = await app.inject({ method: 'POST', url: `/accounts/${acc.id}/videos/sync` });
+    expect(sync1.statusCode).toBe(200);
+    expect(sync1.json().synced).toBe(2);
+
+    const list1 = await app.inject({ method: 'GET', url: `/accounts/${acc.id}/videos` });
+    expect(list1.json().videos).toHaveLength(2);
+    expect(list1.json().videos[0].id).toBe('v2'); // published_at DESC
+    expect(list1.json().synced_at).toBeTypeOf('number');
+
+    // Second sync returns only v2 — v1 must be pruned.
+    library = library.slice(1);
+    const sync2 = await app.inject({ method: 'POST', url: `/accounts/${acc.id}/videos/sync` });
+    expect(sync2.statusCode).toBe(200);
+    const list2 = await app.inject({ method: 'GET', url: `/accounts/${acc.id}/videos` });
+    expect(list2.json().videos.map((v: { id: string }) => v.id)).toEqual(['v2']);
+    await app.close();
+  });
+
+  it('sync maps token_refresh_failed → 401 and platform failure → 502', async () => {
+    const app = Fastify({ logger: false });
+    const db: DB = await openDB(':memory:');
+    const users = new UsersRepo(db);
+    users.insert({ id: 'test-user-id', email: 't@e.com', password_hash: 'h', name: 'T' });
+    const accounts = new AccountsRepo(db);
+    // Bad ciphertext → decrypt throws → token_refresh_failed.
+    const acc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      external_id: 'UC_x',
+      display_name: 'X',
+      oauth_refresh_token: 'garbage',
+      oauth_access_token: 'garbage',
+      token_expires_at: Date.now() + 3600 * 1000,
+      status: 'active',
+    });
+    const okAcc = accounts.insert({
+      user_id: 'test-user-id',
+      platform: 'youtube',
+      external_id: 'UC_y',
+      display_name: 'Y',
+      oauth_refresh_token: encrypt('rt', TOKEN_KEY),
+      oauth_access_token: encrypt('at', TOKEN_KEY),
+      token_expires_at: Date.now() + 3600 * 1000,
+      status: 'active',
+    });
+    const mockAuthMiddleware = async (req: any, _reply: any) => {
+      req.userId = 'test-user-id';
+    };
+    registerAccountRoutes(app, {
+      accounts,
+      posts: new ScheduledPostsRepo(db),
+      channelVideos: new ChannelVideosRepo(db),
+      listChannelVideos: async () => {
+        throw new Error('platform exploded');
+      },
+      tokenEncryptionKey: TOKEN_KEY,
+      authMiddleware: mockAuthMiddleware,
+    });
+    await app.ready();
+
+    const bad = await app.inject({ method: 'POST', url: `/accounts/${acc.id}/videos/sync` });
+    expect(bad.statusCode).toBe(401);
+    expect(bad.json().error).toBe('token_refresh_failed');
+
+    const failed = await app.inject({ method: 'POST', url: `/accounts/${okAcc.id}/videos/sync` });
+    expect(failed.statusCode).toBe(502);
+    expect(failed.json().error).toBe('videos_fetch_failed');
+    await app.close();
   });
 });

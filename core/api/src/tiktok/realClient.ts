@@ -42,7 +42,9 @@ export interface RealTiktokConfig {
   fetchImpl?: typeof fetch;
 }
 
-const DEFAULT_SCOPES = 'user.info.basic,video.upload,video.publish';
+// video.list powers the per-account video library (POST /accounts/:id/videos/sync).
+// Accounts connected before this scope was added must re-auth to grant it.
+const DEFAULT_SCOPES = 'user.info.basic,video.upload,video.publish,video.list';
 
 /** Translate a snake_case API field into the camelCase our interface uses. */
 interface TiktokTokenResponse {

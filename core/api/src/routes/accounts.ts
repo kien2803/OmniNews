@@ -9,16 +9,73 @@ import type {
 import { ACCOUNT_LANGUAGE_CODES, isPlatform } from '@social-auto/shared';
 import { decrypt, encrypt } from '@social-auto/shared/utils/crypto.js';
 import type { ChannelInfo, GoogleOAuthClient } from '../google/client.js';
+import type { TiktokOAuthClient } from '../tiktok/client.js';
 import type { AccountsRepo } from '../repositories/accounts.js';
+import type { ChannelVideosRepo } from '../repositories/channelVideos.js';
+import { createChannelVideoLister, type ChannelVideoLister } from '../lib/channelVideos.js';
 import type { ScheduledPostsRepo } from '../repositories/scheduledPosts.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 
 export interface AccountsDeps {
   accounts: AccountsRepo;
   posts: ScheduledPostsRepo;
+  channelVideos: ChannelVideosRepo;
   google?: GoogleOAuthClient;
+  tiktok?: TiktokOAuthClient;
+  metaApiVersion?: string;
+  /** Test seam — defaults to the real platform dispatcher. */
+  listChannelVideos?: ChannelVideoLister;
   tokenEncryptionKey?: string;
   authMiddleware: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+}
+
+const TOKEN_EXPIRY_BUFFER_MS = 60_000;
+
+/** Decrypt the account's access token, refreshing via its refresh token when
+ *  expired. Mirrors the Cloudflare worker's lib/tokens.ts per-platform rules:
+ *  youtube — Google refresh grant; tiktok — Login Kit refresh with ROTATING
+ *  refresh token (persisted alongside); meta — no refresh grant, throws so the
+ *  caller surfaces 'reconnect'. Throws on any failure. */
+async function usableAccessToken(deps: AccountsDeps, row: AccountRow): Promise<string> {
+  const key = deps.tokenEncryptionKey;
+  if (!key) throw new Error('token_refresh_failed: no encryption key');
+  if (row.oauth_access_token && row.token_expires_at && row.token_expires_at > Date.now() + TOKEN_EXPIRY_BUFFER_MS) {
+    try {
+      return decrypt(row.oauth_access_token, key);
+    } catch {
+      /* fall through to refresh */
+    }
+  }
+  // A stored access token with no recorded expiry — Meta rows created
+  // before token_expires_at was tracked. Use it until the API says no.
+  if (row.oauth_access_token && !row.token_expires_at) {
+    try {
+      return decrypt(row.oauth_access_token, key);
+    } catch {
+      /* fall through */
+    }
+  }
+  const refresh = decrypt(row.oauth_refresh_token, key);
+  if (row.platform === 'youtube') {
+    if (!deps.google) throw new Error('token_refresh_failed: google client unavailable');
+    const tokens = await deps.google.refresh(refresh);
+    deps.accounts.updateTokens(row.id, {
+      access_token: encrypt(tokens.access_token, key),
+      expires_at: tokens.expires_at,
+    });
+    return tokens.access_token;
+  }
+  if (row.platform === 'tiktok') {
+    if (!deps.tiktok) throw new Error('token_refresh_failed: tiktok client unavailable');
+    const tokens = await deps.tiktok.refresh(refresh);
+    deps.accounts.updateTokens(row.id, {
+      access_token: encrypt(tokens.access_token, key),
+      refresh_token: encrypt(tokens.refresh_token, key),
+      expires_at: tokens.expires_at,
+    });
+    return tokens.access_token;
+  }
+  throw new Error('token_refresh_failed: meta token expired — reconnect account');
 }
 
 /** Wire shape for an account row returned by the API. Never includes tokens. */
@@ -80,80 +137,6 @@ function toSnapshot(info: ChannelInfo): AccountChannelSnapshot {
     drop_off_pct: null,
     last_sync_at: info.snapshot_at,
   };
-}
-
-/**
- * Public shape of a single video row surfaced by the Analytics page.
- * Mirrors the YouTube Data API `videos.list?part=snippet,statistics`
- * output we will eventually back with — for now the mock generator in
- * `mockChannelVideos` produces these from a deterministic seed tied to
- * the channel id so the UI can be exercised without live credentials.
- */
-export interface ChannelVideo {
-  id: string;
-  title: string;
-  thumbnail_url: string;
-  published_at: number;
-  duration_sec: number | null;
-  view_count: number | null;
-  like_count: number | null;
-  comment_count: number | null;
-  url: string;
-}
-
-/**
- * Deterministic mock video feed for any platform. Returns an empty list
- * for non-YouTube platforms — the worker stubs for TikTok / IG / FB do
- * not persist a video history, so the row count would be 0 either way.
- *
- * Seeded by `channelId` so the same account always returns the same list
- * during a session. Volume / metrics scale lightly with the hash so
- * different accounts feel distinct rather than a single canned list.
- */
-function listVideosForPlatform(platform: Platform, channelId: string): ChannelVideo[] {
-  if (platform !== 'youtube' || !channelId) return [];
-  return mockChannelVideos(channelId);
-}
-
-function mockChannelVideos(channelId: string): ChannelVideo[] {
-  // FNV-1a 32-bit hash — fast, deterministic, no deps.
-  let hash = 2166136261;
-  for (let i = 0; i < channelId.length; i++) {
-    hash ^= channelId.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  const seed = (hash >>> 0) || 1;
-  const now = Date.now();
-  const titles = [
-    'How I edit videos in 10 minutes',
-    'The setup that changed my workflow',
-    'Quick tip: keyboard shortcuts',
-    'Behind the scenes — last shoot',
-    'Q&A with the community',
-    'Field test: new camera gear',
-    'Why I switched platforms',
-    'Building the studio from scratch',
-    'Color grading walkthrough',
-    'A day in the life vlog',
-  ];
-  const out: ChannelVideo[] = [];
-  for (let i = 0; i < 10; i++) {
-    const titleSeed = (seed * (i + 1) * 2654435761) >>> 0;
-    const title = titles[titleSeed % titles.length]!;
-    const daysAgo = i * 5 + (titleSeed % 4);
-    out.push({
-      id: `${channelId}_mock_${i}`,
-      title,
-      thumbnail_url: '',
-      published_at: now - daysAgo * 24 * 60 * 60 * 1000,
-      duration_sec: 60 + (titleSeed % 600),
-      view_count: 100 + (titleSeed % 50000),
-      like_count: 5 + (titleSeed % 2000),
-      comment_count: 1 + (titleSeed % 200),
-      url: `https://youtube.com/watch?v=mock_${channelId}_${i}`,
-    });
-  }
-  return out;
 }
 
 export function registerAccountRoutes(
@@ -294,10 +277,9 @@ export function registerAccountRoutes(
     return deps.posts.countByStatusForAccount(req.params.id);
   });
 
-  // GET /accounts/:id/videos — latest public videos for the channel. YouTube
-  // for now; TikTok / IG / FB return an empty list because the worker stubs
-  // don't persist a video history. The route exists so the Analytics page
-  // single-account view has a uniform surface across platforms.
+  // GET /accounts/:id/videos — the synced copy of videos published on this
+  // platform account. Populated by POST .../videos/sync; the GET only reads
+  // the table, so the list is empty until the first sync runs.
   app.get<{ Params: { id: string } }>('/accounts/:id/videos', { preHandler: deps.authMiddleware }, async (req, reply) => {
     const userId = (req as AuthenticatedRequest).userId;
     const existing = deps.accounts.findById(req.params.id);
@@ -305,7 +287,55 @@ export function registerAccountRoutes(
     if (existing.user_id !== userId) {
       return reply.code(403).send({ error: 'account_not_owned' });
     }
-    return { videos: listVideosForPlatform(existing.platform, existing.external_id) };
+    const rows = deps.channelVideos.listByAccount(existing.id);
+    const syncedAt = rows.length ? Math.max(...rows.map((v) => v.synced_at)) : null;
+    return {
+      videos: rows.map((v) => ({
+        id: v.external_id,
+        title: v.title,
+        thumbnail_url: v.thumbnail_url,
+        published_at: v.published_at,
+        duration_sec: v.duration_sec,
+        view_count: v.view_count,
+        like_count: v.like_count,
+        comment_count: v.comment_count,
+        url: v.url,
+      })),
+      synced_at: syncedAt,
+    };
+  });
+
+  // POST /accounts/:id/videos/sync — pull the account's published videos
+  // from the platform and upsert them into channel_videos. Items the
+  // platform no longer returns are pruned by replaceForAccount.
+  app.post<{ Params: { id: string } }>('/accounts/:id/videos/sync', { preHandler: deps.authMiddleware }, async (req, reply) => {
+    const userId = (req as AuthenticatedRequest).userId;
+    const existing = deps.accounts.findById(req.params.id);
+    if (!existing) return reply.code(404).send({ error: 'not_found' });
+    if (existing.user_id !== userId) {
+      return reply.code(403).send({ error: 'account_not_owned' });
+    }
+    if (!existing.external_id && existing.platform !== 'tiktok') {
+      return reply.code(400).send({ error: 'account_missing_external_id' });
+    }
+    let token: string;
+    try {
+      token = await usableAccessToken(deps, existing);
+    } catch {
+      return reply.code(401).send({ error: 'token_refresh_failed' });
+    }
+    const lister =
+      deps.listChannelVideos ??
+      createChannelVideoLister({ google: deps.google, metaApiVersion: deps.metaApiVersion });
+    let items;
+    try {
+      items = await lister(existing, token);
+    } catch {
+      return reply.code(502).send({ error: 'videos_fetch_failed' });
+    }
+    const syncedAt = Date.now();
+    deps.channelVideos.replaceForAccount(existing, items, syncedAt);
+    return { synced: items.length, synced_at: syncedAt };
   });
 
   // POST /accounts/:id/sync — refresh the YouTube channel snapshot.

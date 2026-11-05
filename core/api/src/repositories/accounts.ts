@@ -361,8 +361,17 @@ export class AccountsRepo {
 
   updateTokens(
     id: string,
-    patch: { access_token: string | null; expires_at: number | null },
+    patch: { access_token: string | null; expires_at: number | null; refresh_token?: string },
   ): void {
+    // refresh_token is only set by TikTok refreshes — Login Kit rotates it,
+    // so the new value must be persisted or the account dies on next expiry.
+    if (patch.refresh_token !== undefined) {
+      this.db.raw.run(
+        'UPDATE accounts SET oauth_access_token = ?, token_expires_at = ?, oauth_refresh_token = ? WHERE id = ?',
+        [patch.access_token, patch.expires_at, patch.refresh_token, id],
+      );
+      return;
+    }
     this.db.raw.run(
       'UPDATE accounts SET oauth_access_token = ?, token_expires_at = ? WHERE id = ?',
       [patch.access_token, patch.expires_at, id],

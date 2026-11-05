@@ -67,3 +67,22 @@ export interface ClaimedPost extends ScheduledPostRow {
   account: AccountRow;
   video: VideoRow;
 }
+
+/** A video synced from an account's published library (0007_channel_videos).
+ *  `external_id` is the platform's video id — unique per account. */
+export interface ChannelVideoRow {
+  id: string;
+  account_id: string;
+  user_id: string;
+  platform: Platform;
+  external_id: string;
+  title: string;
+  thumbnail_url: string;
+  url: string;
+  published_at: number | null;
+  duration_sec: number | null;
+  view_count: number | null;
+  like_count: number | null;
+  comment_count: number | null;
+  synced_at: number;
+}

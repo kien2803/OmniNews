@@ -17,6 +17,7 @@ import { openDB } from './db.js';
 import { AccountsRepo } from './repositories/accounts.js';
 import { VideosRepo } from './repositories/videos.js';
 import { ScheduledPostsRepo } from './repositories/scheduledPosts.js';
+import { ChannelVideosRepo } from './repositories/channelVideos.js';
 import { QuotasRepo } from './repositories/quotas.js';
 import { UsersRepo } from './repositories/users.js';
 import { registerAuthRoutes } from './routes/auth.js';
@@ -110,6 +111,7 @@ export async function buildApp() {
   const accounts = new AccountsRepo(db);
   const videos = new VideosRepo(db);
   const posts = new ScheduledPostsRepo(db);
+  const channelVideos = new ChannelVideosRepo(db);
   const quotas = new QuotasRepo(db);
   const users = new UsersRepo(db);
   const authService = new AuthService(users, env.jwtSecret);
@@ -181,7 +183,16 @@ export async function buildApp() {
     authMiddleware,
     optionalAuthMiddleware,
   });
-  registerAccountRoutes(app, { accounts, posts, google, tokenEncryptionKey: env.tokenEncryptionKey, authMiddleware });
+  registerAccountRoutes(app, {
+    accounts,
+    posts,
+    channelVideos,
+    google,
+    tiktok: tiktokUseMock ? undefined : tiktok,
+    metaApiVersion: env.metaApiVersion,
+    tokenEncryptionKey: env.tokenEncryptionKey,
+    authMiddleware,
+  });
   registerVideoRoutes(app, { videos, posts, storageDir: env.storageDir, authMiddleware });
   registerScheduleRoutes(app, { posts, videos, accounts, authMiddleware });
   registerUploadProgressRoutes(app, { authMiddleware, videos });

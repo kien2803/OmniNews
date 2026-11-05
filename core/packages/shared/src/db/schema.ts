@@ -99,6 +99,29 @@ export interface UserRow {
   created_at: number;
 }
 
+/**
+ * A video synced from a connected account's published library (YouTube
+ * uploads, TikTok posts, FB/IG Reels). Rows are upserted on each manual
+ * sync; rows the platform no longer returns are pruned. `external_id`
+ * is the platform's video id — unique per account.
+ */
+export interface ChannelVideoRow {
+  id: string;
+  account_id: string;
+  user_id: string;
+  platform: Platform;
+  external_id: string;
+  title: string;
+  thumbnail_url: string;
+  url: string;
+  published_at: number | null;
+  duration_sec: number | null;
+  view_count: number | null;
+  like_count: number | null;
+  comment_count: number | null;
+  synced_at: number;
+}
+
 export interface QuotaRow {
   id: number;
   platform: Platform;
@@ -185,6 +208,25 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
   -- column via ALTER TABLE ADD COLUMN (migration 0012).
   notes TEXT
 );
+
+CREATE TABLE IF NOT EXISTS channel_videos (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  thumbnail_url TEXT NOT NULL DEFAULT '',
+  url TEXT NOT NULL DEFAULT '',
+  published_at INTEGER,
+  duration_sec INTEGER,
+  view_count INTEGER,
+  like_count INTEGER,
+  comment_count INTEGER,
+  synced_at INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_videos_account_ext ON channel_videos (account_id, external_id);
 
 CREATE TABLE IF NOT EXISTS quotas (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -363,6 +405,16 @@ export const MIGRATIONS: readonly Migration[] = [
     phase: 'drafts-notes',
     statements: [
       'ALTER TABLE scheduled_posts ADD COLUMN notes TEXT',
+    ],
+  },
+  {
+    // Per-account published-video library, populated by manual sync
+    // (POST /accounts/:id/videos/sync). Mirrors D1 0007_channel_videos.
+    id: '0013-channel-videos',
+    phase: 'channel-videos',
+    statements: [
+      "CREATE TABLE IF NOT EXISTS channel_videos (id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, platform TEXT NOT NULL, external_id TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', thumbnail_url TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '', published_at INTEGER, duration_sec INTEGER, view_count INTEGER, like_count INTEGER, comment_count INTEGER, synced_at INTEGER NOT NULL)",
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_videos_account_ext ON channel_videos (account_id, external_id)',
     ],
   },
 ];

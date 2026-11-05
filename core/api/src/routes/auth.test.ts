@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { buildTestAppWithMock } from '../test-helpers.js';
 import { ScheduledPostsRepo } from '../repositories/scheduledPosts.js';
+import { ChannelVideosRepo } from '../repositories/channelVideos.js';
 import type { FastifyInstance } from 'fastify';
 
 describe('YouTube OAuth routes (T0.3)', () => {
@@ -140,6 +141,7 @@ describe('YouTube OAuth routes (T0.3)', () => {
     registerAccountRoutes(app2, {
       accounts: repo,
       posts: new ScheduledPostsRepo(db),
+      channelVideos: new ChannelVideosRepo(db),
       google,
       tokenEncryptionKey: 'a'.repeat(64),
       authMiddleware: mockAuthMiddleware,
@@ -409,6 +411,7 @@ describe('Mock multi-platform auth (T2.2/T2.3)', () => {
     registerAccountRoutes(app, {
       accounts,
       posts: new ScheduledPostsRepo(db),
+      channelVideos: new ChannelVideosRepo(db),
       google,
       tokenEncryptionKey: 'a'.repeat(64),
       authMiddleware: mockAuthMiddleware,

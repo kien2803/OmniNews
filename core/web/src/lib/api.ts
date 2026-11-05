@@ -61,15 +61,14 @@ export interface AccountChannelSnapshot {
 
 /**
  * One row in the Analytics → "Recent videos" list. The shape mirrors what
- * the YouTube Data API `videos.list?part=snippet,statistics` returns — for
- * now the server seeds these deterministically for mock accounts so the
- * UI can be exercised without live credentials.
+ * the YouTube Data API `videos.list?part=snippet,statistics` returns.
+ * Rows come from the synced server-side library (POST .../videos/sync).
  */
 export interface ChannelVideo {
   id: string;
   title: string;
   thumbnail_url: string;
-  published_at: number;
+  published_at: number | null;
   duration_sec: number | null;
   view_count: number | null;
   like_count: number | null;
@@ -79,6 +78,13 @@ export interface ChannelVideo {
 
 export interface ChannelVideoListResponse {
   videos: ChannelVideo[];
+  /** ms epoch of the last sync — null when the library was never synced. */
+  synced_at: number | null;
+}
+
+export interface ChannelVideoSyncResponse {
+  synced: number;
+  synced_at: number;
 }
 export interface AccountRow {
   id: string;
@@ -333,6 +339,8 @@ export const api = {
   accountStats: (id: string) => req<AccountStats>(`/accounts/${id}/stats`),
   listChannelVideos: (id: string) =>
     req<ChannelVideoListResponse>(`/accounts/${id}/videos`),
+  syncChannelVideos: (id: string) =>
+    req<ChannelVideoSyncResponse>(`/accounts/${id}/videos/sync`, { method: 'POST', body: '' }),
   syncAccount: (id: string) =>
     req<SyncAccountResponse>(`/accounts/${id}/sync`, { method: 'POST', body: '' }),
 

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { api, type AccountRow, type ChannelVideo } from '../lib/api.js';
 import { safeHref } from '../lib/safeHref.js';
@@ -6,6 +6,7 @@ import { Badge } from './ui/Badge.js';
 import { Button } from './ui/Button.js';
 import { EmptyState } from './ui/EmptyState.js';
 import { Skeleton } from './ui/Skeleton.js';
+import { useToast } from './ui/Toast.js';
 
 function formatBigNumber(n: number | null | undefined): string {
   if (n == null) return '—';
@@ -59,7 +60,7 @@ function VideoTile({ video, platform }: { video: ChannelVideo; platform: string 
           {formatBigNumber(video.view_count)} views · {formatBigNumber(video.like_count)} likes ·{' '}
           {formatBigNumber(video.comment_count)} comments
         </p>
-        {video.published_at > 0 && (
+        {video.published_at != null && video.published_at > 0 && (
           <p className="text-[11px] text-ink-subtle dark:text-stone-500">
             {dayjs(video.published_at).format('MMM D, YYYY')}
           </p>
@@ -71,7 +72,8 @@ function VideoTile({ video, platform }: { video: ChannelVideo; platform: string 
 
 /** Right-side drawer listing the videos already published on a connected
  *  account — YouTube uploads+Shorts, TikTok videos, FB/IG Reels. Data comes
- *  from GET /accounts/:id/videos (platform APIs, live). */
+ *  from GET /accounts/:id/videos, which reads the synced copy in the DB —
+ *  the Sync button calls POST .../videos/sync to refresh it. */
 export function AccountLibraryDrawer({
   account,
   onClose,
@@ -79,12 +81,32 @@ export function AccountLibraryDrawer({
   account: AccountRow;
   onClose: () => void;
 }) {
+  const toast = useToast();
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ['channel-videos', account.id],
     queryFn: () => api.listChannelVideos(account.id),
     retry: 1,
   });
+  const sync = useMutation({
+    mutationFn: () => api.syncChannelVideos(account.id),
+    onSuccess: (d) => {
+      void qc.invalidateQueries({ queryKey: ['channel-videos', account.id] });
+      toast.push({ tone: 'success', title: `Synced ${d.synced} video${d.synced === 1 ? '' : 's'}` });
+    },
+    onError: (e) => {
+      toast.push({
+        tone: 'error',
+        title: 'Sync failed',
+        description:
+          e instanceof Error && e.message.includes('token_refresh_failed')
+            ? 'Access token expired — reconnect the account and try again.'
+            : 'The platform API rejected the request.',
+      });
+    },
+  });
   const videos = q.data?.videos ?? [];
+  const syncedAt = q.data?.synced_at ?? null;
 
   return (
     <>
@@ -102,10 +124,20 @@ export function AccountLibraryDrawer({
               <span className="truncate">{account.display_name}</span>
               <Badge tone="neutral">{account.platform}</Badge>
             </p>
+            {syncedAt != null && (
+              <p className="mt-0.5 text-[11px] text-ink-subtle dark:text-stone-500">
+                Synced {dayjs(syncedAt).format('MMM D, HH:mm')}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={() => void q.refetch()} loading={q.isRefetching}>
-              Refresh
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => sync.mutate()}
+              loading={sync.isPending}
+            >
+              Sync
             </Button>
             <button
               type="button"
@@ -128,11 +160,7 @@ export function AccountLibraryDrawer({
             <EmptyState
               icon={<span>!</span>}
               title="Couldn't load videos"
-              description={
-                q.error instanceof Error && q.error.message.includes('token_refresh_failed')
-                  ? 'Access token expired — reconnect the account and try again.'
-                  : 'The platform API rejected the request. Try Refresh.'
-              }
+              description="Couldn't load the synced library. Try again."
               action={
                 <Button size="sm" onClick={() => void q.refetch()}>
                   Retry
@@ -142,8 +170,17 @@ export function AccountLibraryDrawer({
           ) : videos.length === 0 ? (
             <EmptyState
               icon={<span>▶</span>}
-              title="No videos yet"
-              description={`Nothing published on this ${account.platform} account — or the connected token can't list videos yet.`}
+              title={syncedAt == null ? 'Not synced yet' : 'No videos found'}
+              description={
+                syncedAt == null
+                  ? 'Press Sync to pull the videos published on this account.'
+                  : `Nothing published on this ${account.platform} account — or the connected token can't list videos yet.`
+              }
+              action={
+                <Button size="sm" onClick={() => sync.mutate()} loading={sync.isPending}>
+                  Sync now
+                </Button>
+              }
             />
           ) : (
             <div className="grid grid-cols-2 gap-3">
