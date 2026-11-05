@@ -131,7 +131,9 @@ oauthRoutes.get('/auth/youtube/status', async (c) => {
 // TikTok OAuth (Login Kit + PKCE S256)
 // ──────────────────────────────────────────────────────────────────────────
 
-const TIKTOK_SCOPES = 'user.info.basic,video.upload,video.publish';
+// video.list powers the per-account video library (GET /accounts/:id/videos).
+// Accounts connected before this scope was added must re-auth to grant it.
+const TIKTOK_SCOPES = 'user.info.basic,video.upload,video.publish,video.list';
 const TIKTOK_AUTHORIZE = 'https://www.tiktok.com/v2/auth/authorize/';
 const TIKTOK_TOKEN = 'https://open.tiktokapis.com/v2/oauth/token/';
 const TIKTOK_USERINFO = 'https://open.tiktokapis.com/v2/user/info/';

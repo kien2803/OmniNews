@@ -3,15 +3,15 @@ import type { Context } from 'hono';
 import { AccountsRepo } from '../repos/accounts';
 import { ScheduledPostsRepo } from '../repos/scheduledPosts';
 import { bearerUserId } from '../lib/auth';
-import { decrypt, encrypt } from '../lib/crypto';
-import { getMyChannel, listRecentVideos, refreshAccessToken } from '../lib/google';
+import { getMyChannel, listRecentVideos } from '../lib/google';
+import { usableAccessToken } from '../lib/tokens';
+import { listChannelVideos } from '../lib/channelVideos';
 import type { AccountRow, Platform, AccountStatus } from '../repos/types';
 import type { Env } from '../env';
 
 const PLATFORMS: readonly Platform[] = ['youtube', 'tiktok', 'instagram', 'facebook'];
 const STATUSES: readonly AccountStatus[] = ['active', 'expired', 'revoked'];
 const LANGUAGE_CODES = ['ENGLISH', 'VIETNAMESE'] as const;
-const TOKEN_EXPIRY_BUFFER_MS = 60_000;
 
 export const accountRoutes = new Hono<{ Bindings: Env }>();
 
@@ -55,24 +55,6 @@ async function ownedAccount(
   if (!row) return { error: c.json({ error: 'not_found' }, 404) };
   if (row.user_id !== userId) return { error: c.json({ error: 'account_not_owned' }, 403) };
   return { row };
-}
-
-/** Decrypt access token, refreshing via the refresh token when expired. */
-async function usableAccessToken(env: Env, accounts: AccountsRepo, row: AccountRow): Promise<string> {
-  if (row.oauth_access_token && row.token_expires_at && row.token_expires_at > Date.now() + TOKEN_EXPIRY_BUFFER_MS) {
-    try {
-      return await decrypt(row.oauth_access_token, env.TOKEN_ENCRYPTION_KEY);
-    } catch {
-      /* fall through to refresh */
-    }
-  }
-  const refresh = await decrypt(row.oauth_refresh_token, env.TOKEN_ENCRYPTION_KEY);
-  const tokens = await refreshAccessToken(env, refresh);
-  await accounts.updateTokens(row.id, {
-    access_token: await encrypt(tokens.access_token, env.TOKEN_ENCRYPTION_KEY),
-    expires_at: tokens.expires_at,
-  });
-  return tokens.access_token;
 }
 
 accountRoutes.get('/accounts', async (c) => {
@@ -188,17 +170,24 @@ accountRoutes.get('/accounts/:id/stats', async (c) => {
   return c.json({ account_id: r.row.id, by_status: byStatus, total, last_published_at: lastPublished });
 });
 
+// Per-account video library: the videos already published on this platform
+// account (YouTube uploads+Shorts, TikTok videos, FB Reels, IG Reels).
+// All four platforms map onto one wire shape — see lib/channelVideos.ts.
 accountRoutes.get('/accounts/:id/videos', async (c) => {
   const r = await ownedAccount(c, c.req.param('id'));
   if ('error' in r) return r.error;
-  if (r.row.platform !== 'youtube' || !r.row.external_id) return c.json({ videos: [] });
+  if (!r.row.external_id && r.row.platform !== 'tiktok') return c.json({ videos: [] });
+  let token: string;
   try {
-    const token = await usableAccessToken(c.env, new AccountsRepo(c.env.DB), r.row);
-    const videos = await listRecentVideos(token, r.row.external_id);
-    return c.json({
-      videos: videos.map((v) => ({ ...v, url: `https://youtube.com/watch?v=${v.id}` })),
-    });
+    token = await usableAccessToken(c.env, new AccountsRepo(c.env.DB), r.row);
   } catch {
+    return c.json({ error: 'token_refresh_failed' }, 401);
+  }
+  try {
+    const videos = await listChannelVideos(c.env, r.row, token);
+    return c.json({ videos });
+  } catch (e) {
+    console.error('channel videos fetch failed', e);
     return c.json({ error: 'videos_fetch_failed' }, 502);
   }
 });

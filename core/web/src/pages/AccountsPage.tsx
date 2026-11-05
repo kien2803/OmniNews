@@ -20,6 +20,7 @@ import { Badge } from '../components/ui/Badge.js';
 import { EmptyState } from '../components/ui/EmptyState.js';
 import { Skeleton } from '../components/ui/Skeleton.js';
 import { Modal } from '../components/ui/Modal.js';
+import { AccountLibraryDrawer } from '../components/AccountLibraryDrawer.js';
 import { useToast } from '../components/ui/Toast.js';
 import { track, warnValidation } from '../lib/telemetry.js';
 import { extractOAuthResultFromMessage } from '../lib/oAuthPopup.js';
@@ -230,11 +231,13 @@ function AccountCard({
   onChanged,
   onEdit,
   onReconnect,
+  onLibrary,
 }: {
   account: AccountRow;
   onChanged: () => void;
   onEdit: (a: AccountRow) => void;
   onReconnect: (platform: Platform) => void;
+  onLibrary: (a: AccountRow) => void;
 }) {
   const toast = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -287,6 +290,9 @@ function AccountCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
+          <Button size="sm" variant="secondary" onClick={() => onLibrary(account)}>
+            Videos
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => onEdit(account)}>
             Edit
           </Button>
@@ -333,10 +339,12 @@ function AccountTable({
   accounts,
   onEdit,
   onChanged,
+  onLibrary,
 }: {
   accounts: AccountRow[];
   onEdit: (a: AccountRow) => void;
   onChanged: () => void;
+  onLibrary: (a: AccountRow) => void;
 }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-stone-200 dark:border-stone-800">
@@ -387,6 +395,9 @@ function AccountTable({
               </td>
               <td className="px-3 py-2">
                 <div className="flex justify-end gap-1">
+                  <Button size="sm" variant="secondary" onClick={() => onLibrary(a)}>
+                    Videos
+                  </Button>
                   <Button size="sm" variant="secondary" onClick={() => onEdit(a)}>
                     Edit
                   </Button>
@@ -571,6 +582,7 @@ export function AccountsPage() {
 
   const [view, setView] = usePersistedViewMode();
   const [editing, setEditing] = useState<AccountRow | null>(null);
+  const [library, setLibrary] = useState<AccountRow | null>(null);
   const accountsQuery: UseQueryResult<AccountListResponse> = useQuery({
     queryKey: ['accounts-list'],
     queryFn: () => api.listAccounts(),
@@ -808,6 +820,7 @@ export function AccountsPage() {
               onChanged={refresh}
               onEdit={setEditing}
               onReconnect={handleConnect}
+              onLibrary={setLibrary}
             />
           ))}
         </div>
@@ -816,6 +829,7 @@ export function AccountsPage() {
           accounts={list}
           onChanged={refresh}
           onEdit={setEditing}
+          onLibrary={setLibrary}
         />
       )}
 
@@ -826,6 +840,7 @@ export function AccountsPage() {
       )}
 
       {editing && <EditAccountModal account={editing} onClose={() => setEditing(null)} />}
+      {library && <AccountLibraryDrawer account={library} onClose={() => setLibrary(null)} />}
     </div>
   );
 }
