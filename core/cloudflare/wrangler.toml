@@ -1,4 +1,4 @@
-name = "omnicast"
+name = "omninews"
 main = "src/index.ts"
 compatibility_date = "2026-10-19"
 workers_dev = true
@@ -18,8 +18,11 @@ run_worker_first = ["/api/*", "/auth/*"]
 # ── D1 (SQLite) ─────────────────────────────────────────────────────
 [[d1_databases]]
 binding = "DB"
-database_name = "social-auto-db"
-database_id = "2a75c37f-cb5e-4f4a-982b-c7776262bbac"
+database_name = "omninews-db"
+# OmniNews is an independent project — create its own D1 with
+#   wrangler d1 create omninews-db
+# then paste the new database_id here. Do NOT reuse OmniCast's id.
+database_id = "REPLACE_WITH_NEW_D1_ID"
 migrations_dir = "migrations"
 
 # ── R2 (optional object storage — articles store image URLs, no binary) ──────────────────────────────────
@@ -30,17 +33,17 @@ migrations_dir = "migrations"
 # ── Queue: publish jobs (with dead-letter) ──────────────────────────
 [[queues.producers]]
 binding = "PUBLISH_QUEUE"
-queue = "omnicast-publish"
+queue = "omninews-publish"
 
 [[queues.consumers]]
-queue = "omnicast-publish"
+queue = "omninews-publish"
 max_batch_size = 5
 max_batch_timeout = 10
 max_retries = 5
-dead_letter_queue = "omnicast-publish-dlq"
+dead_letter_queue = "omninews-publish-dlq"
 
 [[queues.consumers]]
-queue = "omnicast-publish-dlq"
+queue = "omninews-publish-dlq"
 max_batch_size = 10
 max_retries = 0
 
@@ -57,11 +60,11 @@ crons = ["*/1 * * * *"]
 
 [vars]
 # Public origin for OAuth redirect_uri — must match platform consoles.
-WEB_ORIGIN = "https://omnicast.trunkynw2803.workers.dev"
-META_REDIRECT_URI = "https://omnicast.trunkynw2803.workers.dev/auth/meta/callback"
-THREADS_REDIRECT_URI = "https://omnicast.trunkynw2803.workers.dev/auth/threads/callback"
-REDDIT_REDIRECT_URI = "https://omnicast.trunkynw2803.workers.dev/auth/reddit/callback"
-X_REDIRECT_URI = "https://omnicast.trunkynw2803.workers.dev/auth/x/callback"
+WEB_ORIGIN = "https://omninews.trunkynw2803.workers.dev"
+META_REDIRECT_URI = "https://omninews.trunkynw2803.workers.dev/auth/meta/callback"
+THREADS_REDIRECT_URI = "https://omninews.trunkynw2803.workers.dev/auth/threads/callback"
+REDDIT_REDIRECT_URI = "https://omninews.trunkynw2803.workers.dev/auth/reddit/callback"
+X_REDIRECT_URI = "https://omninews.trunkynw2803.workers.dev/auth/x/callback"
 # OAuth cookies are marked Secure whenever WEB_ORIGIN is https (cookieOpts
 # derives it) — SECURE_COOKIES was dead config here and has been removed.
 STORAGE_QUOTA_GB = "10"

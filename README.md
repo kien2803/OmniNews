@@ -2,6 +2,9 @@
 
 SaaS social-media automation — viết bài một lần, schedule, publish lên Facebook / Threads / Reddit / X từ một nơi.
 
+> Project độc lập — fork/mở rộng từ OmniCast (video scheduler) nhưng deploy,
+> database, queues và domain riêng. Không chia sẻ D1/Queue với OmniCast.
+
 **Live**: https://omnicast.trunkynw2803.workers.dev
 
 > Proprietary — all rights reserved. Không phải self-hosted product; codebase private.
