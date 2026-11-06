@@ -42,7 +42,7 @@ export function Topbar({
       <div className="flex min-w-0 items-center gap-3">
         <div className="flex items-center gap-2 md:hidden">
           <img src="/logo.svg" alt="" className="h-6 w-6" />
-          <span className="font-display text-sm font-semibold text-ink dark:text-stone-100">Omnicast</span>
+          <span className="font-display text-sm font-semibold text-ink dark:text-stone-100">OmniNews</span>
         </div>
         {title && (
           <h1 className="hidden truncate font-display text-sm font-semibold text-ink md:block dark:text-stone-100">
@@ -55,7 +55,7 @@ export function Topbar({
           {envLabel}
         </span>
         <Link to="/posts/new" className="hidden sm:block">
-          <Button size="sm">Create Post</Button>
+          <Button size="sm">File story</Button>
         </Link>
         {user && <span className="hidden text-sm text-ink-muted md:block dark:text-stone-400">{user.name}</span>}
         {user && (

@@ -24,13 +24,13 @@ export function TermsPage() {
           <p>
             You keep full ownership of your articles and posts. You are responsible for the
             content you publish and for complying with each platform's own terms and content
-            policies. We act only on the schedules you set — Omnicast never posts on your
+            policies. We act only on the schedules you set — OmniNews never posts on your
             behalf without a post you explicitly created.
           </p>
 
           <h2 className="text-lg font-semibold">3. Acceptable use</h2>
           <p>
-            Do not use Omnicast to publish content that violates law or platform policies, to
+            Do not use OmniNews to publish content that violates law or platform policies, to
             spam, or to operate accounts you do not own or manage. Abuse may result in account
             suspension.
           </p>
@@ -56,7 +56,7 @@ export function TermsPage() {
         </section>
 
         <p className="mt-10 text-sm text-ink-subtle dark:text-stone-500">
-          <Link to="/" className="underline hover:text-ink">← Back to Omnicast</Link>
+          <Link to="/" className="underline hover:text-ink">← Back to OmniNews</Link>
           {' · '}
           <Link to="/privacy" className="underline hover:text-ink">Privacy Policy</Link>
         </p>

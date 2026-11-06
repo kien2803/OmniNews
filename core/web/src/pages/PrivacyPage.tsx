@@ -50,7 +50,7 @@ export function PrivacyPage() {
 
         <p className="mt-10 text-sm">
           <Link to="/" className="text-indigo-600 hover:underline dark:text-indigo-400">
-            ← Back to Omnicast
+            ← Back to OmniNews
           </Link>
         </p>
       </main>

@@ -51,9 +51,9 @@ export default {
       },
       fontFamily: {
         sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        // One type family across the product: headings use Plex Sans at
-        // heavier weights instead of a second typeface.
-        display: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Plex Serif for headlines — the editorial voice that sets OmniNews
+        // apart from OmniCast's single-family broadcast console.
+        display: ['"IBM Plex Serif"', 'Georgia', 'serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
       keyframes: {

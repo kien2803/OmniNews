@@ -126,8 +126,8 @@ export function LandingPage() {
       <header className="border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src="/logo.svg" alt="Omnicast" className="h-8 w-8" />
-            <span className="font-display text-lg font-semibold tracking-tight">Omnicast</span>
+            <img src="/logo.svg" alt="OmniNews" className="h-8 w-8" />
+            <span className="font-display text-lg font-semibold tracking-tight">OmniNews</span>
           </Link>
           <nav className="flex items-center gap-2">
             {isAuthenticated ? (
@@ -205,7 +205,7 @@ export function LandingPage() {
             className="mt-6 max-w-xl animate-hero-in text-base leading-relaxed text-ink-muted dark:text-stone-400"
             style={{ animationDelay: '240ms' }}
           >
-            Omnicast takes a single article and transmits it to Facebook,
+            OmniNews takes a single article and transmits it to Facebook,
             Threads, Reddit and X at the times you set — retries, quotas and
             history handled by the station, not by you.
           </p>
@@ -285,7 +285,7 @@ export function LandingPage() {
             </h2>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink-muted dark:text-stone-400">
               Cross-posting by hand means signing in and uploading to every
-              platform, one account at a time. Omnicast turns it into a single
+              platform, one account at a time. OmniNews turns it into a single
               transmission: upload once and the station relays it to every
               channel at once.
             </p>
@@ -465,7 +465,7 @@ export function LandingPage() {
       )}
 
       <footer className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 font-mono text-xs text-ink-subtle dark:text-stone-500">
-        <span>Omnicast — post scheduling for Facebook, Threads, Reddit &amp; X</span>
+        <span>OmniNews — post scheduling for Facebook, Threads, Reddit &amp; X</span>
         <Link to="/privacy" className="underline underline-offset-2 hover:text-ink dark:hover:text-stone-300">Privacy</Link>
       </footer>
     </div>
