@@ -9,32 +9,32 @@ import {
   IconThreads,
 } from '../components/icons.js';
 
-const STATIONS = [
-  { name: 'YouTube', freq: 'CH-01', scope: 'upload + read', Icon: IconFacebook },
-  { name: 'Threads', freq: 'CH-02', scope: 'threads_content_publish', Icon: IconThreads },
-  { name: 'Instagram', freq: 'CH-03', scope: 'content_publish', Icon: IconX },
-  { name: 'Facebook', freq: 'CH-04', scope: 'pages_manage_posts', Icon: IconFacebook },
+const DESKS = [
+  { name: 'Facebook', freq: 'DSK-01', scope: 'pages_manage_posts', Icon: IconFacebook },
+  { name: 'Threads', freq: 'DSK-02', scope: 'threads_content_publish', Icon: IconThreads },
+  { name: 'Reddit', freq: 'DSK-03', scope: 'identity · submit', Icon: IconReddit },
+  { name: 'X', freq: 'DSK-04', scope: 'tweet.write · offline', Icon: IconX },
 ] as const;
 
-const SIGNAL = [
-  { time: '09:00', event: 'story filed — 2,400 chars, 3 photos attached' },
-  { time: '09:00', event: 'thumbnail rendered, duration probed' },
-  { time: '18:30', event: 'press run starts — DSK-01 Facebook, DSK-02 Threads' },
-  { time: '18:31', event: 'published · CH-01 OK, CH-03 retry queued (rate limit)' },
-  { time: '18:46', event: 'retry succeeds · CH-03 OK — broadcast complete' },
+const WIRE_LOG = [
+  { time: '08:40', event: 'story filed — 2,400 chars, 3 photos, 1 link' },
+  { time: '08:41', event: 'desk pass — X deck trimmed to 280, Reddit titled' },
+  { time: '09:00', event: 'press run — DSK-01 Facebook, DSK-02 Threads out' },
+  { time: '09:01', event: 'printed · DSK-01/02 OK — DSK-04 X retry (rate limit)' },
+  { time: '09:16', event: 'retry lands · DSK-04 OK — edition complete' },
 ] as const;
 
-// Uneven cadence on purpose — manual uploads don't happen on a metronome.
+// Uneven cadence on purpose — hand-posting never lands on a metronome.
 const MANUAL_TEMPO = [0, 1.85, 4.1, 6.3] as const;
 
-// The fan-out scene: SVG paths (viewBox 320x200) from the upload node at
-// (160,182) up to each platform receiver. x/y are the endpoints in %, where
-// the HTML nodes sit — they stay aligned since the svg stretches with them.
+// The fan-out scene: SVG paths (viewBox 320x200) from the story node at
+// (160,182) up to each desk. x/y are the endpoints in %, where the HTML
+// nodes sit — they stay aligned since the svg stretches with them.
 const FANOUT = [
   { d: 'M160 182 C 95 140 55 95 40 44', x: 12.5, y: 22, name: 'Facebook', Icon: IconFacebook },
-  { d: 'M160 182 C 132 122 120 72 120 30', x: 37.5, y: 15, name: 'TikTok', Icon: IconReddit },
-  { d: 'M160 182 C 188 122 200 72 200 30', x: 62.5, y: 15, name: 'Instagram', Icon: IconX },
-  { d: 'M160 182 C 225 140 265 95 280 44', x: 87.5, y: 22, name: 'Facebook', Icon: IconFacebook },
+  { d: 'M160 182 C 132 122 120 72 120 30', x: 37.5, y: 15, name: 'Threads', Icon: IconThreads },
+  { d: 'M160 182 C 188 122 200 72 200 30', x: 62.5, y: 15, name: 'Reddit', Icon: IconReddit },
+  { d: 'M160 182 C 225 140 265 95 280 44', x: 87.5, y: 22, name: 'X', Icon: IconX },
 ] as const;
 
 function Eq({ className = '', bars = 3, delay = 0 }: { className?: string; bars?: number; delay?: number }) {
@@ -52,12 +52,12 @@ function Eq({ className = '', bars = 3, delay = 0 }: { className?: string; bars?
 }
 
 const CAPABILITIES = [
-  ['Encrypted channel auth', 'OAuth per platform, tokens sealed at rest, many channels per account.'],
-  ['Upload once', 'Stream to storage, sha-256 dedup, thumbnail generated on ingest.'],
-  ['Transmission schedule', 'Exact-time publishing, per-platform captions and visibility.'],
-  ['Self-healing send', 'Backoff retries on transient failure; dead letters get flagged, not dropped.'],
-  ['Quota governor', 'Per-platform daily budgets tracked so a burst never burns your API limit.'],
-  ['Broadcast log', 'Full publish history, channel stats and per-platform analytics.'],
+  ['Sealed desk auth', 'OAuth per platform, tokens encrypted at rest, several desks per account.'],
+  ['Write once', 'Title, body, link, photos — one story filed to every desk.'],
+  ['Deadline schedule', 'Exact-time publishing, per-desk deck overrides.'],
+  ['Self-healing file', 'Backoff retries on transient failure; dead letters flagged, not dropped.'],
+  ['Quota governor', 'Per-platform daily budgets enforced before anything goes out.'],
+  ['Wire log', 'Full publish history, desk stats and per-platform analytics.'],
 ] as const;
 
 type RevealVariant = 'up' | 'left' | 'pop';
@@ -122,7 +122,7 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-surface-muted font-sans text-ink dark:bg-[#1c1917] dark:text-stone-100">
-      {/* Station header */}
+      {/* Masthead */}
       <header className="border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
           <Link to="/" className="flex items-center gap-2.5">
@@ -142,10 +142,10 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Act I — masthead: transmission identity over a live carrier */}
+      {/* Act I — masthead: editorial identity over a live wire */}
       <section className="relative overflow-hidden border-b border-stone-200 dark:border-stone-800">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          {/* drifting carrier waves — each layer also bobs, so the drift
+          {/* drifting wires — each layer also bobs, so the drift
               never reads as a straight conveyor belt */}
           <div className="absolute bottom-8 left-0 h-14 w-full animate-bob-a">
             <svg
@@ -175,10 +175,10 @@ export function LandingPage() {
               />
             </svg>
           </div>
-          {/* tuner sweeps — two hairlines scanning the band, out of phase */}
+          {/* column rules — two hairlines sweeping the page, out of phase */}
           <div className="absolute inset-y-0 w-px animate-sweep bg-stone-400/40 dark:bg-stone-500/30" />
           <div className="absolute inset-y-0 w-px animate-sweep bg-stone-300/50 [animation-delay:-6.5s] dark:bg-stone-600/40" />
-          {/* the transmitter — a breathing source radiating rings */}
+          {/* the desk — a breathing source radiating deadline rings */}
           <div className="absolute right-12 top-10 hidden h-32 w-32 md:block">
             <span className="absolute inset-0 animate-ring rounded-full border border-brand-500/50 dark:border-brand-500/40" />
             <span className="absolute inset-0 animate-ring rounded-full border border-brand-500/50 [animation-delay:1.4s] dark:border-brand-500/40" />
@@ -199,15 +199,15 @@ export function LandingPage() {
             className="mt-4 max-w-3xl animate-hero-in font-display text-4xl font-semibold leading-[1.06] tracking-tight md:text-6xl"
             style={{ animationDelay: '120ms' }}
           >
-            One upload. Every channel, on schedule.
+            One story. Every desk, on deadline.
           </h1>
           <p
             className="mt-6 max-w-xl animate-hero-in text-base leading-relaxed text-ink-muted dark:text-stone-400"
             style={{ animationDelay: '240ms' }}
           >
-            OmniNews takes a single article and transmits it to Facebook,
-            Threads, Reddit and X at the times you set — retries, quotas and
-            history handled by the station, not by you.
+            OmniNews files a single story — title, body, link, photos — to
+            Facebook, Threads, Reddit and X at the times you set. Retries,
+            quotas and the wire log are handled by the desk, not by you.
           </p>
           <div
             className="mt-8 flex animate-hero-in flex-wrap items-center gap-3"
@@ -225,10 +225,10 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Act II — the channels this station is tuned to */}
+      {/* Act II — the desks this newsroom files to */}
       <div className="border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto grid max-w-5xl grid-cols-2 gap-x-6 px-6 sm:grid-cols-4 sm:gap-x-0">
-          {STATIONS.map(({ name, freq, Icon }, i) => (
+          {DESKS.map(({ name, freq, Icon }, i) => (
             <Reveal
               key={name}
               variant="pop"
@@ -251,10 +251,10 @@ export function LandingPage() {
       <section className="border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-12">
           <Reveal>
-            <h2 className="font-display text-xl font-semibold">Channel lineup</h2>
+            <h2 className="font-display text-xl font-semibold">Desk lineup</h2>
           </Reveal>
           <div className="mt-4 border-t border-stone-200 dark:border-stone-800">
-            {STATIONS.map((s, i) => (
+            {DESKS.map((s, i) => (
               <Reveal
                 key={s.name}
                 variant="left"
@@ -273,34 +273,33 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Act III — the relay vs. the transmission */}
+      {/* Act III — by hand vs. one filing */}
       <section className="border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-14">
           <Reveal>
             <p className="font-mono text-xs text-brand-600 dark:text-brand-500">
-              the relay → the broadcast
+              by hand → one filing
             </p>
             <h2 className="mt-3 max-w-2xl font-display text-2xl font-semibold tracking-tight md:text-3xl">
               Same story, four desks — one filing.
             </h2>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink-muted dark:text-stone-400">
-              Cross-posting by hand means signing in and uploading to every
+              Cross-posting by hand means signing in and reposting to every
               platform, one account at a time. OmniNews turns it into a single
-              transmission: upload once and the station relays it to every
-              channel at once.
+              filing: write once and the desk puts it on every wire at once.
             </p>
           </Reveal>
 
           <div className="mt-10 grid gap-10 sm:grid-cols-2 sm:gap-8">
-            {/* before — one upload per platform, one at a time */}
+            {/* before — one submission per desk, one at a time */}
             <Reveal variant="left" delay={120}>
               <figure>
                 <figcaption className="flex items-baseline justify-between border-b border-stone-200 pb-3 font-mono text-[11px] uppercase tracking-widest text-ink-subtle dark:border-stone-800 dark:text-stone-500">
                   <span>by hand</span>
-                  <span>4 uploads · serial</span>
+                  <span>4 submissions · serial</span>
                 </figcaption>
                 <div className="mt-6 space-y-3">
-                  {STATIONS.map(({ name, Icon }, i) => (
+                  {DESKS.map(({ name, Icon }, i) => (
                     <div
                       key={name}
                       className="rounded-sm border border-stone-200 bg-surface px-3 py-2.5 shadow-soft dark:border-stone-700 dark:bg-[#262019]"
@@ -308,7 +307,7 @@ export function LandingPage() {
                       <div className="flex items-center gap-2">
                         <Icon className="h-3.5 w-3.5 text-ink-subtle dark:text-stone-500" />
                         <span className="font-mono text-[10px] text-ink-muted dark:text-stone-400">
-                          {name} · uploading…
+                          {name} · posting…
                         </span>
                         <span
                           className="ml-auto animate-done-pop font-mono text-[9px] uppercase tracking-widest text-success-500"
@@ -327,21 +326,21 @@ export function LandingPage() {
                   ))}
                 </div>
                 <p className="mt-6 font-mono text-[11px] text-ink-subtle dark:text-stone-500">
-                  elapsed — one channel at a time
+                  elapsed — one desk at a time
                 </p>
               </figure>
             </Reveal>
 
-            {/* after — one upload, relayed everywhere at once */}
+            {/* after — one filing, on every wire at once */}
             <Reveal delay={240}>
               <figure>
                 <figcaption className="flex items-baseline justify-between border-b border-stone-200 pb-3 font-mono text-[11px] uppercase tracking-widest text-ink-subtle dark:border-stone-800 dark:text-stone-500">
-                  <span>on omnicast</span>
-                  <span>1 upload · parallel</span>
+                  <span>on omninews</span>
+                  <span>1 filing · parallel</span>
                 </figcaption>
-                {/* transmission map — packets ride the curves to every
-                    platform at once; receivers flash as each packet lands */}
-                <div className="relative mt-6 h-60" role="img" aria-label="One article relayed to Facebook, Threads, Reddit and X at the same time">
+                {/* wire map — copy rides the curves to every desk at once;
+                    desks flash as each filing lands */}
+                <div className="relative mt-6 h-60" role="img" aria-label="One story filed to Facebook, Threads, Reddit and X at the same time">
                   <svg
                     className="absolute inset-0 h-full w-full text-stone-300 dark:text-stone-600"
                     viewBox="0 0 320 200"
@@ -382,11 +381,11 @@ export function LandingPage() {
                   <span className="absolute left-1/2 top-[91%] flex h-14 w-11 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-sm border border-stone-200 bg-surface shadow-soft dark:border-stone-700 dark:bg-[#262019]">
                     <span className="absolute inset-0 animate-ring rounded-sm border border-brand-500/50" />
                     <IconUpload className="h-4 w-4 text-brand-600 dark:text-brand-500" />
-                    <span className="font-mono text-[9px] text-ink-subtle dark:text-stone-500">clip.mp4</span>
+                    <span className="font-mono text-[9px] text-ink-subtle dark:text-stone-500">story.md</span>
                   </span>
                 </div>
                 <p className="mt-6 font-mono text-[11px] text-ink-subtle dark:text-stone-500">
-                  queued — every channel at once
+                  filed — every desk at once
                 </p>
               </figure>
             </Reveal>
@@ -394,12 +393,12 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* The proof — a broadcast day, logged */}
+      {/* The proof — a press day, logged */}
       <section className="border-b border-stone-200 bg-surface dark:border-stone-800 dark:bg-[#211d18]">
         <div className="mx-auto max-w-5xl px-6 py-12">
           <Reveal>
             <h2 className="flex items-center gap-2.5 font-display text-xl font-semibold">
-              A broadcast day
+              A press day
               <span className="relative inline-flex h-1.5 w-1.5">
                 <span className="absolute inset-0 animate-ping rounded-full bg-brand-500 opacity-75" />
                 <span className="relative h-1.5 w-1.5 rounded-full bg-brand-500" />
@@ -407,7 +406,7 @@ export function LandingPage() {
             </h2>
           </Reveal>
           <div className="mt-4 border-t border-stone-200 font-mono text-sm dark:border-stone-800">
-            {SIGNAL.map((e, i) => (
+            {WIRE_LOG.map((e, i) => (
               <Reveal
                 key={i}
                 variant="left"
@@ -422,12 +421,12 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Act IV — what the station handles for you */}
+      {/* Act IV — what the desk handles for you */}
       <section className="border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-12">
           <Reveal>
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-xl font-semibold">Inside the station</h2>
+              <h2 className="font-display text-xl font-semibold">Inside the newsroom</h2>
               <Eq className="h-5 text-brand-500/80" bars={5} />
             </div>
           </Reveal>
@@ -451,10 +450,10 @@ export function LandingPage() {
         <section className="border-b border-stone-200 dark:border-stone-800">
           <div className="mx-auto max-w-5xl px-6 py-14">
             <Reveal>
-              <h2 className="font-display text-2xl font-semibold">Go on air</h2>
+              <h2 className="font-display text-2xl font-semibold">File your first story</h2>
               <p className="mt-2 max-w-md text-sm text-ink-muted dark:text-stone-400">
-                Create an account, connect a channel, and schedule your first
-                broadcast in minutes.
+                Create an account, connect a desk, and put your first story on
+                the wire in minutes.
               </p>
               <Link to="/register" className="btn-primary mt-6 inline-flex px-6 py-3 text-base">
                 Get started
