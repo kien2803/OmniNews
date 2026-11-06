@@ -72,8 +72,8 @@ export function ComposePage() {
   const newArticleValid = !!(nTitle.trim() || nBody.trim() || nLink.trim() || nImages.trim());
 
   const errors: string[] = [];
-  if (!articleId && !creatingNew) errors.push('Select or write an article');
-  if (creatingNew && !newArticleValid) errors.push('Article needs a title, body, link or image');
+  if (!articleId && !creatingNew) errors.push('Select or write a story');
+  if (creatingNew && !newArticleValid) errors.push('Story needs a title, body, link or image');
   if (!accountIds.length) errors.push('Select at least one account');
 
   const createArticle = useMutation({
@@ -107,7 +107,7 @@ export function ComposePage() {
     onSuccess: (_d, draft) => {
       localStorage.setItem('omninews.lastAccounts', JSON.stringify(accountIds));
       void qc.invalidateQueries({ queryKey: ['schedule'] });
-      toast.push({ tone: 'success', title: draft ? 'Draft saved' : 'Post scheduled' });
+      toast.push({ tone: 'success', title: draft ? 'Draft saved' : 'Story filed' });
       navigate(draft ? '/posts/pipeline' : '/posts/calendar');
     },
     onError: (e) => toast.push({ tone: 'error', title: 'Failed', description: e instanceof Error ? e.message : 'unknown_error' }),
@@ -118,12 +118,12 @@ export function ComposePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <header>
-        <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">composer</p>
-        <h1 className="font-display text-2xl font-semibold text-ink dark:text-stone-100">Create Post</h1>
+        <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">desk</p>
+        <h1 className="font-display text-2xl font-semibold text-ink dark:text-stone-100">File a story</h1>
       </header>
 
       {/* 1 — article */}
-      <Section n={1} title="Article">
+      <Section n={1} title="Story">
         {article && !creatingNew ? (
           <div className="flex items-start gap-3">
             {article.images[0] ? (
@@ -187,7 +187,7 @@ export function ComposePage() {
       </Section>
 
       {/* 2 — accounts */}
-      <Section n={2} title="Accounts">
+      <Section n={2} title="Desks">
         <div className="mb-2 flex justify-end">
           <button type="button" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-100"
             onClick={() => setAccountIds(activeAccounts.map((a) => a.id))}>
@@ -234,7 +234,7 @@ export function ComposePage() {
       </Section>
 
       {/* 3 — caption */}
-      <Section n={3} title="Caption override">
+      <Section n={3} title="Deck override">
         <Field
           label={perPlatform ? 'Shared caption (fallback)' : 'Caption'}
           hint={`${caption.length}/5000 — empty uses the article's title + body${
@@ -267,7 +267,7 @@ export function ComposePage() {
       </Section>
 
       {/* 4 — options */}
-      <Section n={4} title="Publishing options">
+      <Section n={4} title="Deadline options">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={`Publish at (${tz})`} required>
             <input type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} className="input" />
@@ -286,7 +286,7 @@ export function ComposePage() {
       </Section>
 
       {/* 5 — review */}
-      <Section n={5} title="Review">
+      <Section n={5} title="Proof">
         <dl className="space-y-1.5 text-sm">
           <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Article</dt><dd className="truncate font-medium text-ink dark:text-stone-100">{creatingNew ? (nTitle || 'New article') : (article?.title ?? '—')}</dd></div>
           <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Accounts</dt><dd className="text-ink dark:text-stone-100">{selectedAccounts.map((a) => a.display_name).join(', ') || '—'}</dd></div>

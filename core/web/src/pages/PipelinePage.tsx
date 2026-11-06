@@ -14,10 +14,10 @@ import type { ScheduledPostRow } from '../lib/api.js';
 /** Kanban over post lifecycle — simple words, matching scheduled_posts.status. */
 const LANES: { id: string; label: string; statuses: ScheduledPostRow['status'][] }[] = [
   { id: 'draft', label: 'drafts', statuses: ['draft'] },
-  { id: 'queued', label: 'scheduled', statuses: ['pending'] },
-  { id: 'airing', label: 'publishing', statuses: ['uploading'] },
-  { id: 'aired', label: 'published', statuses: ['published'] },
-  { id: 'fault', label: 'failed', statuses: ['failed', 'dead'] },
+  { id: 'queued', label: 'filed', statuses: ['pending'] },
+  { id: 'airing', label: 'on the wire', statuses: ['uploading'] },
+  { id: 'aired', label: 'printed', statuses: ['published'] },
+  { id: 'fault', label: 'killed', statuses: ['failed', 'dead'] },
 ];
 
 function LaneCard({
@@ -163,8 +163,8 @@ export function PipelinePage() {
       <PostsNav />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">post flow · live</p>
-          <h1 className="font-display text-2xl font-semibold text-ink dark:text-stone-100">Pipeline</h1>
+          <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">newsroom wire · live</p>
+          <h1 className="font-display text-2xl font-semibold text-ink dark:text-stone-100">The wire</h1>
         </div>
         <input
           type="search"

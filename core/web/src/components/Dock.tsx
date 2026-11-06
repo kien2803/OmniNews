@@ -22,11 +22,11 @@ interface DockItem {
 const postsMatch = (p: string) => p.startsWith('/posts/') && p !== '/posts/new';
 
 const PRIMARY: DockItem[] = [
-  { to: '/dashboard', label: 'Overview', icon: IconDashboard },
-  { to: '/library', label: 'Library', icon: IconUpload },
-  { to: '/posts/new', label: 'Create', icon: IconPlus as unknown as IconComponent },
-  { to: '/posts/calendar', label: 'Posts', icon: IconTimeline as unknown as IconComponent, match: postsMatch },
-  { to: '/accounts', label: 'Accounts', icon: IconAccounts },
+  { to: '/dashboard', label: 'Front page', icon: IconDashboard },
+  { to: '/library', label: 'The wire', icon: IconUpload },
+  { to: '/posts/new', label: 'File story', icon: IconPlus as unknown as IconComponent },
+  { to: '/posts/calendar', label: 'Deadline', icon: IconTimeline as unknown as IconComponent, match: postsMatch },
+  { to: '/accounts', label: 'Bureaus', icon: IconAccounts },
 ];
 
 const SECONDARY: DockItem[] = [

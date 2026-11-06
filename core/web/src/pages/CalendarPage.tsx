@@ -383,7 +383,7 @@ export function CalendarPage() {
       <PostsNav />
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-stone-200 pb-4 dark:border-stone-800">
         <div>
-          <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">content schedule</p>
+          <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">deadline calendar</p>
           <h1 className="font-display text-2xl font-bold text-ink dark:text-stone-100">
             {view === 'week'
               ? `${days[0]!.format('MMM D')} – ${days[6]!.format('MMM D, YYYY')}`
@@ -505,7 +505,7 @@ export function CalendarPage() {
 
       {!scheduleQuery.isLoading && posts.length === 0 && !scheduleQuery.isError && (
         <p className="text-center text-sm text-ink-muted dark:text-stone-400">
-          Nothing scheduled — click a day to create a post.
+          Nothing on the wire — click a day to file a story.
         </p>
       )}
 

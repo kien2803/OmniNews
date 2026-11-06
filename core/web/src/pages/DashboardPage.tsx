@@ -45,7 +45,7 @@ const PLATFORM_META: Record<string, { label: string }> = {
   x: { label: 'X' },
 };
 
-/** Channel lineup CH-01..04 — one tile per platform slot, on air vs standby. */
+/** Bureau lineup DESK-01..04 — one tile per platform desk, on the wire vs idle. */
 function ChannelLineup() {
   const accounts = useAccounts();
   const platforms = ['facebook', 'threads', 'reddit', 'x'];
@@ -56,12 +56,12 @@ function ChannelLineup() {
         const active = list.find((a) => a.status === 'active') ?? list[0];
         return (
           <div key={plat} className="border-r border-stone-200 px-4 py-3.5 last:border-r-0 dark:border-stone-800">
-            <div className="font-mono text-[10px] text-ink-subtle dark:text-stone-500">CH-{String(i + 1).padStart(2, '0')}</div>
+            <div className="font-mono text-[10px] text-ink-subtle dark:text-stone-500">DSK-{String(i + 1).padStart(2, '0')}</div>
             <div className="mt-1 text-sm font-semibold capitalize text-ink dark:text-stone-100">
               {PLATFORM_META[plat]?.label ?? plat}
             </div>
             <div className={`mt-1 font-mono text-[10px] ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-subtle dark:text-stone-500'}`}>
-              {active ? `● on air · ${active.display_name}` : '○ standby'}
+              {active ? `● on the wire · ${active.display_name}` : '○ idle'}
             </div>
           </div>
         );
@@ -142,7 +142,7 @@ function ChannelLineup() {
           to="/posts/new"
           className="btn-primary"
         >
-          ↑ New post
+          ↑ New story
         </Link>
         <Link to="/schedule" className="btn-secondary">
           <IconSchedule className="h-4 w-4" /> Schedule list
@@ -151,7 +151,7 @@ function ChannelLineup() {
           <IconHistory className="h-4 w-4" /> History
         </Link>
         <Link to="/accounts" className="btn-ghost ml-auto">
-          Manage accounts →
+          Manage bureaus →
         </Link>
       </CardBody>
     </Card>
@@ -174,8 +174,8 @@ function UpcomingList() {
   return (
     <Card>
       <CardHeader
-        title="Upcoming posts"
-        description="Next 5 scheduled posts, soonest first."
+        title="Next to print"
+        description="Next 5 stories on the wire, soonest first."
         action={
           <Link to="/schedule" className="text-xs text-brand-600 hover:underline dark:text-brand-100">
             View all
@@ -191,8 +191,8 @@ function UpcomingList() {
         ) : upcoming.length === 0 ? (
           <EmptyState
             icon={<IconSchedule className="h-6 w-6" />}
-            title="Nothing scheduled"
-            description="Create an upload and pick a time to see it here."
+            title="Nothing filed"
+            description="File a story and pick a deadline to see it here."
           />
         ) : (
           <ul className="divide-y divide-stone-200 dark:divide-stone-800">
@@ -243,8 +243,8 @@ function FailureList() {
   return (
     <Card>
       <CardHeader
-        title="Recent failures"
-        description="Last 5 failed posts — fix and retry from the schedule page."
+        title="Recent kills"
+        description="Last 5 killed stories — fix and refile from the schedule page."
         action={
           <Link to="/schedule" className="text-xs text-brand-600 hover:underline dark:text-brand-100">
             Schedule
@@ -299,7 +299,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold text-ink dark:text-stone-100">Dashboard</h1>
           <p className="mt-1 text-sm text-ink-muted dark:text-stone-400">
-            Overview of your scheduled and published content.
+            Your newsroom at a glance.
           </p>
         </div>
         <Link to="/posts/new" className="btn-primary">
@@ -308,10 +308,10 @@ export function DashboardPage() {
       </header>
 
       <section className="grid grid-cols-2 border border-stone-200 bg-surface md:grid-cols-4 dark:border-stone-800 dark:bg-[#211d18]">
-        <StatTile label="queued" value={counts.data?.by_status.pending ?? 0} />
-        <StatTile label="aired · 7d" value={counts.data?.published_last_7d ?? 0} hint="last 7 days" />
-        <StatTile label="faults" value={(counts.data?.by_status.failed ?? 0) + (counts.data?.by_status.dead ?? 0)} danger />
-        <StatTile label="channels" value={accounts.data?.length ?? 0} hint={`${accounts.data?.filter((a) => a.status === 'active').length ?? 0} active`} />
+        <StatTile label="filed" value={counts.data?.by_status.pending ?? 0} />
+        <StatTile label="out · 7d" value={counts.data?.published_last_7d ?? 0} hint="last 7 days" />
+        <StatTile label="killed" value={(counts.data?.by_status.failed ?? 0) + (counts.data?.by_status.dead ?? 0)} danger />
+        <StatTile label="bureaus" value={accounts.data?.length ?? 0} hint={`${accounts.data?.filter((a) => a.status === 'active').length ?? 0} active`} />
       </section>
 
       <ChannelLineup />

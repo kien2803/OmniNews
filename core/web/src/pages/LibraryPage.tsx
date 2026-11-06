@@ -112,15 +112,15 @@ export function LibraryPage() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">content</p>
-          <h1 className="font-display text-2xl font-semibold text-ink dark:text-stone-100">Article Library</h1>
+          <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">newsroom</p>
+          <h1 className="font-display text-2xl font-semibold text-ink dark:text-stone-100">The wire</h1>
         </div>
         <div className="flex items-center gap-2">
           <input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search articles…"
+            placeholder="Search the wire…"
             aria-label="Search articles"
             className="w-48 rounded-sm border border-stone-300 bg-surface px-3 py-1.5 text-sm placeholder:text-ink-subtle focus:border-brand-500 focus:outline-none dark:border-stone-700 dark:bg-[#211d18] dark:text-stone-100 dark:placeholder:text-stone-500"
           />
@@ -136,7 +136,7 @@ export function LibraryPage() {
               </button>
             ))}
           </div>
-          <Button size="sm" onClick={() => setEditing('new')}>New article</Button>
+          <Button size="sm" onClick={() => setEditing('new')}>New story</Button>
         </div>
       </header>
 
@@ -148,9 +148,9 @@ export function LibraryPage() {
         <EmptyState title="Couldn't load articles" description={articles.error instanceof Error ? articles.error.message : 'unknown_error'} action={<Button size="sm" onClick={() => void articles.refetch()}>Retry</Button>} />
       ) : items.length === 0 ? (
         <EmptyState
-          title={q ? 'No articles match' : 'No articles yet'}
-          description={q ? 'Try a different search term.' : 'Write your first article to start publishing.'}
-          action={!q ? <Button size="sm" onClick={() => setEditing('new')}>New article</Button> : undefined}
+          title={q ? 'No stories match' : 'No stories yet'}
+          description={q ? 'Try a different search term.' : 'Write your first story to file it to the desks.'}
+          action={!q ? <Button size="sm" onClick={() => setEditing('new')}>New story</Button> : undefined}
         />
       ) : gridView ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -171,7 +171,7 @@ export function LibraryPage() {
                 </p>
                 {badges(a)}
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  <Button size="sm" variant="secondary" onClick={() => navigate(`/posts/new?article=${a.id}`)}>Create Post</Button>
+                  <Button size="sm" variant="secondary" onClick={() => navigate(`/posts/new?article=${a.id}`)}>File to desks</Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditing(a)}>Edit</Button>
                   <Button size="sm" variant="ghost" loading={del.isPending} onClick={() => { if (window.confirm('Delete this article?')) del.mutate(a.id); }}>Delete</Button>
                 </div>
@@ -188,7 +188,7 @@ export function LibraryPage() {
                 {badges(a)}
               </div>
               <div className="flex shrink-0 gap-1.5">
-                <Button size="sm" variant="secondary" onClick={() => navigate(`/posts/new?article=${a.id}`)}>Create Post</Button>
+                <Button size="sm" variant="secondary" onClick={() => navigate(`/posts/new?article=${a.id}`)}>File to desks</Button>
                 <Button size="sm" variant="ghost" onClick={() => setEditing(a)}>Edit</Button>
                 <Button size="sm" variant="ghost" loading={del.isPending} onClick={() => { if (window.confirm('Delete this article?')) del.mutate(a.id); }}>Delete</Button>
               </div>
@@ -206,7 +206,7 @@ export function LibraryPage() {
             <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Images</dt><dd className="font-mono">{preview.images.length}</dd></div>
             <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Created</dt><dd>{dayjs(preview.created_at).format('MMM D, YYYY HH:mm')}</dd></div>
             <div className="flex gap-2 pt-1">
-              <Button onClick={() => { setPreview(null); navigate(`/posts/new?article=${preview.id}`); }}>Create Post with this article</Button>
+              <Button onClick={() => { setPreview(null); navigate(`/posts/new?article=${preview.id}`); }}>File this story</Button>
               <Button variant="ghost" loading={del.isPending} onClick={() => { if (window.confirm('Delete this article?')) del.mutate(preview.id); }}>Delete</Button>
             </div>
           </dl>

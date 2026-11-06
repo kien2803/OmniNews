@@ -17,9 +17,9 @@ const STATIONS = [
 ] as const;
 
 const SIGNAL = [
-  { time: '09:00', event: 'article received — 2,400 chars, 3 images attached' },
+  { time: '09:00', event: 'story filed — 2,400 chars, 3 photos attached' },
   { time: '09:00', event: 'thumbnail rendered, duration probed' },
-  { time: '18:30', event: 'broadcast opens — CH-01 Facebook, CH-02 Threads' },
+  { time: '18:30', event: 'press run starts — DSK-01 Facebook, DSK-02 Threads' },
   { time: '18:31', event: 'published · CH-01 OK, CH-03 retry queued (rate limit)' },
   { time: '18:46', event: 'retry succeeds · CH-03 OK — broadcast complete' },
 ] as const;
@@ -193,7 +193,7 @@ export function LandingPage() {
               <span className="absolute inset-0 animate-ping rounded-full bg-brand-500 opacity-75" />
               <span className="relative h-1.5 w-1.5 rounded-full bg-brand-500" />
             </span>
-            on air · multi-platform post scheduler
+            the wire · multi-desk post scheduler
           </p>
           <h1
             className="mt-4 max-w-3xl animate-hero-in font-display text-4xl font-semibold leading-[1.06] tracking-tight md:text-6xl"
@@ -281,7 +281,7 @@ export function LandingPage() {
               the relay → the broadcast
             </p>
             <h2 className="mt-3 max-w-2xl font-display text-2xl font-semibold tracking-tight md:text-3xl">
-              Same article, four posts — or one click.
+              Same story, four desks — one filing.
             </h2>
             <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink-muted dark:text-stone-400">
               Cross-posting by hand means signing in and uploading to every
