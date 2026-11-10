@@ -3,7 +3,7 @@ import type { Env } from '../env';
 import { bearerUserId } from '../lib/auth';
 import { CommentsRepo } from '../repos/comments';
 import { AccountsRepo } from '../repos/accounts';
-import { decrypt, encrypt } from '../lib/crypto';
+import { decrypt } from '../lib/crypto';
 import { replyComment } from '../lib/commentClients';
 
 export const commentsRoutes = new Hono<{ Bindings: Env }>();

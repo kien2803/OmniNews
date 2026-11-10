@@ -218,7 +218,7 @@ scheduleRoutes.get('/history', async (c) => {
 
   // Platform filter resolves to a set of account ids first — keeps it one
   // indexed query on scheduled_posts instead of a JOIN per row.
-  let accountId = q.account_id || undefined;
+  const accountId = q.account_id || undefined;
   let platformAccountIds: Set<string> | null = null;
   if (q.platform) {
     const rows = await new AccountsRepo(c.env.DB).list({

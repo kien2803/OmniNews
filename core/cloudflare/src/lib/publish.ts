@@ -128,7 +128,7 @@ async function publishX(post: ClaimedPost, token: string): Promise<PublishResult
 
 // ── Dispatch ───────────────────────────────────────────────────────────
 
-const MOCKABLE: Platform[] = ['facebook', 'threads', 'reddit', 'x'];
+export const MOCKABLE: Platform[] = ['facebook', 'threads', 'reddit', 'x'];
 
 /** Publish one claimed post to its account's platform. Throws on failure;
  *  the consumer classifies the error (retryable vs permanent).

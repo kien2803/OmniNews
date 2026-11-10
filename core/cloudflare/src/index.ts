@@ -8,7 +8,7 @@ import { articleRoutes } from './routes/articles';
 import { quotaRoutes } from './routes/quota';
 import { commentsRoutes } from './routes/comments';
 import { pollComments } from './lib/commentPoll';
-import { publishPost } from './lib/publish';
+import { publishPost, MOCKABLE } from './lib/publish';
 import { usableAccessToken } from './lib/tokens';
 import { ScheduledPostsRepo } from './repos/scheduledPosts';
 import { AccountsRepo } from './repos/accounts';
@@ -143,7 +143,12 @@ export default {
         continue;
       }
       try {
-        const token = await usableAccessToken(env, new AccountsRepo(env.DB), post.account);
+        // Mock mode skips token decryption entirely — the point is E2E
+        // testing before real OAuth credentials exist.
+        const token =
+          env.MOCK_PUBLISHERS === 'true' && MOCKABLE.includes(post.account.platform)
+            ? 'mock_token'
+            : await usableAccessToken(env, new AccountsRepo(env.DB), post.account);
         const result = await publishPost(env, post, token);
         await posts.markPublished(postId, result.external_id);
         await quotas.incrementUsage(post.account.platform, 1, Date.now(), post.user_id);
