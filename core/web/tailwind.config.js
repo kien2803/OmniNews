@@ -61,55 +61,20 @@ export default {
           from: { opacity: '0', transform: 'translateY(14px) scale(0.985)', filter: 'blur(3px)' },
           to: { opacity: '1', transform: 'translateY(0) scale(1)', filter: 'blur(0)' },
         },
-        sweep: {
-          '0%': { left: '-4%' },
-          '50%': { left: '104%' },
-          '100%': { left: '-4%' },
-        },
-        'wave-drift': {
-          from: { transform: 'translateX(0)' },
-          to: { transform: 'translateX(-50%)' },
-        },
-        'wave-bob': {
-          '0%, 100%': { transform: 'translateY(0)' },
-          '50%': { transform: 'translateY(-7px)' },
+        // Letterpress settle — the plate comes down, ink bleeds, paper sets.
+        'press-in': {
+          '0%': { opacity: '0', transform: 'scale(1.07) rotate(0.7deg)', filter: 'blur(4px)' },
+          '60%': { opacity: '1', transform: 'scale(0.99) rotate(-0.2deg)', filter: 'blur(0.5px)' },
+          '100%': { opacity: '1', transform: 'scale(1) rotate(0deg)', filter: 'blur(0)' },
         },
         ring: {
           '0%': { transform: 'scale(0.15)', opacity: '0.55' },
           '100%': { transform: 'scale(1)', opacity: '0' },
         },
-        breathe: {
-          '0%, 100%': { transform: 'scale(1)', opacity: '1' },
-          '50%': { transform: 'scale(1.4)', opacity: '0.55' },
-        },
-        'sig-bar': {
-          '0%': { width: '0%', opacity: '1', animationTimingFunction: 'cubic-bezier(0.25, 0.8, 0.35, 1)' },
-          '22%': { width: '100%', animationTimingFunction: 'ease' },
-          '90%': { width: '100%', opacity: '1' },
-          '97%': { width: '100%', opacity: '0' },
-          '100%': { width: '0%', opacity: '0' },
-        },
-        'sig-pop': {
-          '0%, 20%': { opacity: '0.3', transform: 'scale(0.92)' },
-          '28%': { opacity: '1', transform: 'scale(1.12)', animationTimingFunction: 'cubic-bezier(0.34, 1.56, 0.64, 1)' },
-          '38%': { transform: 'scale(1)' },
-          '90%': { opacity: '1' },
-          '100%': { opacity: '0.3', transform: 'scale(0.95)' },
-        },
         'node-pop': {
           '0%, 82%': { opacity: '0.45', transform: 'scale(0.94)' },
           '92%': { opacity: '1', transform: 'scale(1.1)' },
           '100%': { opacity: '0.45', transform: 'scale(0.94)' },
-        },
-        'done-pop': {
-          '0%, 24%': { opacity: '0' },
-          '30%': { opacity: '1' },
-          '88%': { opacity: '1' },
-          '95%, 100%': { opacity: '0' },
-        },
-        eq: {
-          '0%, 100%': { transform: 'scaleY(0.25)' },
-          '50%': { transform: 'scaleY(1)' },
         },
         blink: {
           '0%, 55%': { opacity: '1' },
@@ -119,23 +84,47 @@ export default {
           from: { transform: 'translateX(0)' },
           to: { transform: 'translateX(-50%)' },
         },
+        // Print-rule draws itself left→right (double rules, masthead lines).
+        'rule-draw': {
+          from: { transform: 'scaleX(0)' },
+          to: { transform: 'scaleX(1)' },
+        },
+        // Fig.1: a pencil line sketches the wire, then the inked dashed wire
+        // replaces it. Sketch uses pathLength=1 + dasharray=1 + offset sweep.
+        'wire-sketch': {
+          '0%': { strokeDashoffset: '1', opacity: '0.9' },
+          '70%': { strokeDashoffset: '0', opacity: '0.9' },
+          '100%': { strokeDashoffset: '0', opacity: '0' },
+        },
+        'wire-ink': {
+          '0%, 72%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        // Typewriter — width in steps, caret blinks via .animate-blink.
+        type: {
+          from: { width: '0' },
+          to: { width: '38ch' },
+        },
+        // Rubber stamp slams onto the classified box.
+        'stamp-slam': {
+          '0%': { opacity: '0', transform: 'scale(2.3) rotate(-28deg)', filter: 'blur(2px)' },
+          '55%': { opacity: '1', transform: 'scale(0.94) rotate(-10deg)', filter: 'blur(0)' },
+          '75%': { transform: 'scale(1.05) rotate(-13deg)' },
+          '100%': { opacity: '1', transform: 'scale(1) rotate(-12deg)' },
+        },
       },
       animation: {
         'hero-in': 'hero-in 0.85s cubic-bezier(0.22, 1, 0.36, 1) both',
-        sweep: 'sweep 13s ease-in-out infinite',
-        'wave-a': 'wave-drift 20s linear infinite',
-        'wave-b': 'wave-drift 34s linear infinite',
-        'bob-a': 'wave-bob 7s ease-in-out infinite',
-        'bob-b': 'wave-bob 11s ease-in-out infinite',
+        'press-in': 'press-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both',
         ring: 'ring 4.2s ease-out infinite',
-        breathe: 'breathe 3.2s ease-in-out infinite',
-        'sig-bar': 'sig-bar 9s linear both infinite',
-        'sig-pop': 'sig-pop 9s linear both infinite',
         'node-pop': 'node-pop 2.6s linear both infinite',
-        'done-pop': 'done-pop 9s linear both infinite',
-        eq: 'eq 1.15s ease-in-out infinite',
         blink: 'blink 1.4s steps(1) infinite',
         marquee: 'marquee 36s linear infinite',
+        'rule-draw': 'rule-draw 0.9s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'wire-sketch': 'wire-sketch 1.5s ease-out both',
+        'wire-ink': 'wire-ink 1.5s ease-out both',
+        type: 'type 1.5s steps(38) 0.5s both',
+        'stamp-slam': 'stamp-slam 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both',
       },
     },
   },

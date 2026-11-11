@@ -56,18 +56,11 @@ const EASE: Record<RevealVariant, string> = {
   pop: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
 };
 
-function Reveal({
-  children,
-  delay = 0,
-  variant = 'up',
-  className = '',
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  variant?: RevealVariant;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement | null>(null);
+/** Shared observer — CSS animations run at mount, so below-fold pieces
+ *  (rules, stamps, the wire sketch) only get their animation class once
+ *  the element is actually on screen. */
+function useInView<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null);
   const [seen, setSeen] = useState(false);
 
   useEffect(() => {
@@ -86,6 +79,22 @@ function Reveal({
     return () => io.disconnect();
   }, []);
 
+  return [ref, seen] as const;
+}
+
+function Reveal({
+  children,
+  delay = 0,
+  variant = 'up',
+  className = '',
+}: {
+  children: React.ReactNode;
+  delay?: number;
+  variant?: RevealVariant;
+  className?: string;
+}) {
+  const [ref, seen] = useInView<HTMLDivElement>();
+
   return (
     <div
       ref={ref}
@@ -99,11 +108,48 @@ function Reveal({
   );
 }
 
+/** Print rule — draws itself left→right when it scrolls into view. */
+function Rule({ delay = 0 }: { delay?: number }) {
+  const [ref, seen] = useInView<HTMLDivElement>();
+  return (
+    <div
+      ref={ref}
+      aria-hidden="true"
+      style={{ animationDelay: `${delay}ms` }}
+      className={`origin-left border-t-4 border-double border-ink/70 dark:border-stone-400/60 ${
+        seen ? 'animate-rule-draw' : 'scale-x-0'
+      }`}
+    />
+  );
+}
+
+/** Rubber stamp on the classified box — slams in once it scrolls into view. */
+function Stamp() {
+  const [ref, seen] = useInView<HTMLSpanElement>();
+  return (
+    <span
+      ref={ref}
+      aria-hidden="true"
+      className={`absolute -right-3 -top-7 flex h-20 w-20 items-center justify-center rounded-full border-2 border-brand-600/70 text-center font-mono text-[9px] font-medium uppercase leading-[1.35] tracking-[0.15em] text-brand-600/80 dark:border-brand-500/70 dark:text-brand-500/80 ${
+        seen ? 'animate-stamp-slam' : 'opacity-0'
+      }`}
+      style={{ animationDelay: '0.4s' }}
+    >
+      free
+      <br />
+      press
+      <br />
+      est. 26
+    </span>
+  );
+}
+
 /** § header — numbered section masthead with a double rule, newspaper style. */
 function SectionHead({ n, title, kicker }: { n: string; title: string; kicker?: string }) {
   return (
     <Reveal>
-      <div className="border-t-4 border-double border-ink/70 pt-3 dark:border-stone-400/60">
+      <Rule />
+      <div className="pt-3">
         <div className="flex items-baseline justify-between gap-4">
           <h2 className="font-display text-2xl font-bold tracking-tight">
             <span className="mr-2.5 font-mono text-xs font-normal text-brand-600 dark:text-brand-500">{n}</span>
@@ -120,11 +166,13 @@ function SectionHead({ n, title, kicker }: { n: string; title: string; kicker?: 
   );
 }
 
-/** Fig 1 — the wire map as a print figure: dashed wire routes, red copy
- *  packets in transit, desk chips at the endpoints, story card at the base. */
+/** Fig 1 — the wire map as a print figure: each wire is first sketched in
+ *  pencil (solid hairline sweep), then the inked dashed wire appears; red
+ *  copy packets run the wires once ink is down. */
 function WireFigure() {
+  const [ref, seen] = useInView<HTMLElement>();
   return (
-    <figure className="border border-ink/60 bg-surface p-4 dark:border-stone-500/60 dark:bg-[#211d18]">
+    <figure ref={ref} className="border border-ink/60 bg-surface p-4 dark:border-stone-500/60 dark:bg-[#211d18]">
       <div className="relative h-56" role="img" aria-label="One story filed to Facebook, Threads, Reddit and X at the same time">
         <svg
           className="absolute inset-0 h-full w-full text-ink/40 dark:text-stone-500"
@@ -133,9 +181,32 @@ function WireFigure() {
           fill="none"
           aria-hidden="true"
         >
-          {FANOUT.map(({ d }) => (
-            <path key={d} d={d} stroke="currentColor" strokeWidth="1" strokeDasharray="3 5" />
-          ))}
+          {seen &&
+            FANOUT.map(({ d }, i) => (
+              <path
+                key={`sketch-${d}`}
+                d={d}
+                stroke="currentColor"
+                strokeWidth="0.8"
+                pathLength={1}
+                strokeDasharray="1"
+                strokeDashoffset="1"
+                className="animate-wire-sketch text-ink/60 dark:text-stone-400"
+                style={{ animationDelay: `${0.15 + i * 0.35}s` }}
+              />
+            ))}
+          {seen &&
+            FANOUT.map(({ d }, i) => (
+              <path
+                key={`ink-${d}`}
+                d={d}
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeDasharray="3 5"
+                className="animate-wire-ink"
+                style={{ animationDelay: `${0.15 + i * 0.35}s` }}
+              />
+            ))}
           {FANOUT.flatMap(({ d }, i) =>
             [0, 1.3].map((off) => (
               <circle key={`${i}-${off}`} r="3" className="motion-hide fill-brand-500">
@@ -207,15 +278,20 @@ export function LandingPage() {
             all the desks that fit to print · est. mmxxvi
           </p>
         </div>
-        <div className="border-y-4 border-double border-ink/70 dark:border-stone-400/60">
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500">
-            <span>vol. 01 · late edition</span>
-            <span className="hidden sm:inline">filed daily from every desk</span>
-            <span>price: one story</span>
-          </div>
+        <Rule />
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500">
+          <span>vol. 01 · late edition</span>
+          <span className="hidden sm:inline">filed daily from every desk</span>
+          <span>price: one story</span>
         </div>
-        <div className="overflow-hidden bg-ink py-1.5 text-surface dark:bg-stone-100 dark:text-ink" aria-hidden="true">
-          <div className="flex w-max animate-marquee gap-8 whitespace-nowrap px-4 font-mono text-[11px]">
+        <Rule delay={180} />
+        <div className="flex items-center bg-ink text-surface dark:bg-stone-100 dark:text-ink" aria-hidden="true">
+          <span className="flex shrink-0 items-center gap-1.5 border-r border-surface/25 py-1.5 pl-4 pr-3 font-mono text-[10px] uppercase tracking-[0.25em] text-brand-500 dark:border-ink/25 dark:text-brand-600">
+            <span className="h-1.5 w-1.5 animate-blink rounded-full bg-brand-500 dark:bg-brand-600" />
+            live
+          </span>
+          <div className="flex-1 overflow-hidden py-1.5">
+            <div className="flex w-max animate-marquee gap-8 whitespace-nowrap px-4 font-mono text-[11px]">
             {[0, 1].map((dup) => (
               <span key={dup} className="flex gap-8">
                 {WIRE_LOG.map((e, i) => (
@@ -223,6 +299,7 @@ export function LandingPage() {
                 ))}
               </span>
             ))}
+            </div>
           </div>
         </div>
       </header>
@@ -230,16 +307,22 @@ export function LandingPage() {
       {/* ── Front page — banner headline + lead story + figure rail ──── */}
       <section className="border-b border-stone-300/80 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 pb-12 pt-10 md:pt-14">
-          <h1
-            className="animate-hero-in max-w-4xl font-display text-[11.5vw] font-bold leading-[0.98] tracking-tight sm:text-6xl md:text-7xl"
-          >
-            File one story. Every desk prints it.
+          <h1 className="max-w-4xl font-display text-[11.5vw] font-bold leading-[0.98] tracking-tight sm:text-6xl md:text-7xl">
+            {['File one story.', 'Every desk', 'prints it.'].map((line, i) => (
+              <span
+                key={line}
+                className="block animate-press-in"
+                style={{ animationDelay: `${i * 160}ms` }}
+              >
+                {line}
+              </span>
+            ))}
           </h1>
-          <p
-            className="mt-5 animate-hero-in font-mono text-[11px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500"
-            style={{ animationDelay: '140ms' }}
-          >
-            by the omninews desk — today's edition
+          <p className="mt-5 font-mono text-[11px] uppercase text-ink-subtle dark:text-stone-500">
+            <span className="inline-block w-0 animate-type overflow-hidden whitespace-nowrap align-bottom">
+              by the omninews desk — today's edition
+            </span>
+            <span className="ml-0.5 inline-block h-3 w-[2px] animate-blink bg-brand-600 align-bottom dark:bg-brand-500" aria-hidden="true" />
           </p>
 
           <div className="mt-8 grid gap-10 md:grid-cols-[1fr_320px] md:gap-12">
@@ -419,19 +502,24 @@ export function LandingPage() {
         <section className="border-b border-stone-300/80 dark:border-stone-800">
           <div className="mx-auto max-w-5xl px-6 py-14">
             <Reveal>
-              <div className="mx-auto max-w-xl border-y-4 border-double border-ink/70 px-6 py-8 text-center dark:border-stone-400/60">
-                <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-subtle dark:text-stone-500">
-                  classified · subscriptions open
-                </p>
-                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight">File your first story</h2>
-                <p className="mt-3 text-sm leading-relaxed text-ink-muted dark:text-stone-400">
-                  Create an account, connect a desk, and put your first story on
-                  the wire in minutes. Free to start — no card, no circulation
-                  department.
-                </p>
-                <Link to="/register" className="btn-primary mt-6 inline-flex px-6 py-3 text-base">
-                  Get started
-                </Link>
+              <div className="relative mx-auto max-w-xl">
+                <Stamp />
+                <Rule />
+                <div className="px-6 py-8 text-center">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-subtle dark:text-stone-500">
+                    classified · subscriptions open
+                  </p>
+                  <h2 className="mt-3 font-display text-3xl font-bold tracking-tight">File your first story</h2>
+                  <p className="mt-3 text-sm leading-relaxed text-ink-muted dark:text-stone-400">
+                    Create an account, connect a desk, and put your first story on
+                    the wire in minutes. Free to start — no card, no circulation
+                    department.
+                  </p>
+                  <Link to="/register" className="btn-primary mt-6 inline-flex px-6 py-3 text-base">
+                    Get started
+                  </Link>
+                </div>
+                <Rule delay={140} />
               </div>
             </Reveal>
           </div>
@@ -439,9 +527,11 @@ export function LandingPage() {
       )}
 
       {/* —30— the traditional press end-mark */}
-      <p className="border-b border-stone-300/80 py-6 text-center font-mono text-sm tracking-[0.5em] text-ink-subtle dark:border-stone-800 dark:text-stone-600" aria-hidden="true">
-        —30—
-      </p>
+      <Reveal delay={150}>
+        <p className="border-b border-stone-300/80 py-6 text-center font-mono text-sm tracking-[0.5em] text-ink-subtle dark:border-stone-800 dark:text-stone-600" aria-hidden="true">
+          —30—
+        </p>
+      </Reveal>
 
       <footer className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 font-mono text-xs text-ink-subtle dark:text-stone-500">
         <span>OmniNews — post scheduling for Facebook, Threads, Reddit &amp; X</span>
