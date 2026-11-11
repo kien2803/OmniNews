@@ -64,6 +64,14 @@ export function ComposePage() {
     return m;
   }, [accounts]);
   const selectedAccounts = accounts.filter((a) => accountIds.includes(a.id));
+  // Platforms the caption will exceed — publish truncates silently, so warn here.
+  const overLimitPlatforms = [
+    ...new Set(
+      selectedAccounts
+        .map((a) => a.platform)
+        .filter((p) => caption.length > (PLATFORM_TEXT_LIMITS[p as Platform] ?? Infinity)),
+    ),
+  ];
 
   const toggleAccount = (id: string) =>
     setAccountIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -237,11 +245,16 @@ export function ComposePage() {
       <Section n={3} title="Deck override">
         <Field
           label={perPlatform ? 'Shared caption (fallback)' : 'Caption'}
-          hint={`${caption.length}/5000 — empty uses the article's title + body${
-            selectedAccounts.length
-              ? ` · limits: ${[...new Set(selectedAccounts.map((a) => `${a.platform} ${PLATFORM_TEXT_LIMITS[a.platform as Platform] ?? '—'}`))].join(', ')}`
-              : ''
-          }`}
+          hint={
+            <span>
+              {caption.length}/5000 — empty uses the article's title + body
+              {overLimitPlatforms.length > 0 && (
+                <span className="font-medium text-amber-600 dark:text-amber-400">
+                  {' '}· exceeds {overLimitPlatforms.join(', ')} limit — will be truncated
+                </span>
+              )}
+            </span>
+          }
         >
           <TextArea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={5000} placeholder="Override the post text (optional)…" />
         </Field>
@@ -251,17 +264,29 @@ export function ComposePage() {
         </button>
         {perPlatform && selectedAccounts.length > 0 && (
           <div className="mt-3 space-y-3 border-t border-stone-200 pt-3 dark:border-stone-800">
-            {selectedAccounts.map((a) => (
-              <Field key={a.id} label={`${a.display_name} (${a.platform})`}>
-                <TextArea
-                  value={perCaptions[a.id] ?? ''}
-                  onChange={(e) => setPerCaptions((p) => ({ ...p, [a.id]: e.target.value }))}
-                  rows={2}
-                  maxLength={5000}
-                  placeholder={caption || 'Platform-specific caption…'}
-                />
-              </Field>
-            ))}
+            {selectedAccounts.map((a) => {
+              const limit = PLATFORM_TEXT_LIMITS[a.platform as Platform];
+              const len = (perCaptions[a.id] ?? '').length;
+              return (
+                <Field
+                  key={a.id}
+                  label={`${a.display_name} (${a.platform})`}
+                  hint={
+                    <span className={len > limit ? 'font-medium text-amber-600 dark:text-amber-400' : undefined}>
+                      {len}/{limit}{len > limit ? ' — will be truncated' : ''}
+                    </span>
+                  }
+                >
+                  <TextArea
+                    value={perCaptions[a.id] ?? ''}
+                    onChange={(e) => setPerCaptions((p) => ({ ...p, [a.id]: e.target.value }))}
+                    rows={2}
+                    maxLength={5000}
+                    placeholder={caption || 'Platform-specific caption…'}
+                  />
+                </Field>
+              );
+            })}
           </div>
         )}
       </Section>

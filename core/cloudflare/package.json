@@ -8,7 +8,9 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "db:migrate:local": "wrangler d1 migrations apply omninews-db --local",
-    "db:migrate": "wrangler d1 migrations apply omninews-db --remote"
+    "db:migrate": "wrangler d1 migrations apply omninews-db --remote",
+    "test": "vitest run",
+    "db:seed:local": "wrangler d1 execute omninews-db --local --file=./scripts/seed-local.sql"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -19,6 +21,7 @@
     "@cloudflare/workers-types": "^4.20241022.0",
     "@types/bcryptjs": "^3.0.0",
     "typescript": "^5.6.3",
+    "vitest": "^1.6.0",
     "wrangler": "^4.152.0"
   }
 }
