@@ -121,32 +121,54 @@ export function LandingPage() {
   const { isAuthenticated } = useAuth();
 
   return (
-    <div className="min-h-screen bg-surface-muted font-sans text-ink dark:bg-[#1c1917] dark:text-stone-100">
-      {/* Masthead */}
-      <header className="border-b border-stone-200 dark:border-stone-800">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-          <Link to="/" className="flex items-baseline gap-2.5">
-            <img src="/logo.svg" alt="OmniNews" className="h-8 w-8 self-center" />
-            <span className="font-display text-2xl font-bold tracking-tight">OmniNews</span>
-            <span className="hidden font-mono text-[10px] uppercase tracking-[0.25em] text-ink-subtle sm:inline dark:text-stone-500">est. mmxxvi</span>
-          </Link>
-          <nav className="flex items-center gap-2">
-            {isAuthenticated ? (
-              <Link to="/dashboard" className="btn-primary">Open Dashboard</Link>
-            ) : (
-              <>
-                <Link to="/login" className="btn-ghost">Sign in</Link>
-                <Link to="/register" className="btn-primary">Get started</Link>
-              </>
-            )}
-          </nav>
+    <div className="min-h-screen bg-[#f7f4ec] font-sans text-ink dark:bg-[#171410] dark:text-stone-100">
+      {/* Masthead — a real front page: utility row, centered wordmark
+          between double rules, dateline strip, then the live wire ticker */}
+      <header>
+        {/* utility row — thin, quiet */}
+        <div className="border-b border-stone-200 dark:border-stone-800">
+          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500">
+            <span>the newsroom for social posts</span>
+            <nav className="flex items-center gap-3 normal-case tracking-normal">
+              {isAuthenticated ? (
+                <Link to="/dashboard" className="btn-primary !px-3 !py-1 text-xs">Open Dashboard</Link>
+              ) : (
+                <>
+                  <Link to="/login" className="hover:text-ink dark:hover:text-stone-300">Sign in</Link>
+                  <Link to="/register" className="btn-primary !px-3 !py-1 text-xs">Get started</Link>
+                </>
+              )}
+            </nav>
+          </div>
         </div>
-        {/* dateline strip — the newspaper's collar */}
-        <div className="border-t border-stone-200 dark:border-stone-800">
+        {/* wordmark — centered like a newspaper masthead */}
+        <div className="mx-auto flex max-w-5xl flex-col items-center px-6 pb-4 pt-6 text-center">
+          <div className="flex items-center gap-3">
+            <img src="/logo.svg" alt="" className="h-9 w-9" />
+            <span className="font-display text-5xl font-bold tracking-tight md:text-6xl">OmniNews</span>
+          </div>
+          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-subtle dark:text-stone-500">
+            all the desks that fit to print · est. mmxxvi
+          </p>
+        </div>
+        {/* dateline strip — collar between double rules */}
+        <div className="border-y-4 border-double border-ink/70 dark:border-stone-400/60">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500">
             <span>vol. 01 · late edition</span>
             <span className="hidden sm:inline">filed daily from every desk</span>
             <span>price: one story</span>
+          </div>
+        </div>
+        {/* wire ticker — the day&apos;s log scrolling under the masthead */}
+        <div className="overflow-hidden border-b border-stone-200 bg-ink py-1.5 text-surface dark:border-stone-800 dark:bg-stone-100 dark:text-ink" aria-hidden="true">
+          <div className="flex w-max animate-marquee gap-8 whitespace-nowrap px-4 font-mono text-[11px]">
+            {[0, 1].map((dup) => (
+              <span key={dup} className="flex gap-8">
+                {WIRE_LOG.map((e, i) => (
+                  <span key={i}><span className="opacity-60">{e.time}</span> · {e.event} <span className="px-3 text-brand-500">◆</span></span>
+                ))}
+              </span>
+            ))}
           </div>
         </div>
       </header>
@@ -196,7 +218,8 @@ export function LandingPage() {
           </div>
         </div>
 
-        <div className="relative mx-auto max-w-5xl px-6 pb-12 pt-12 md:pt-16">
+        <div className="relative mx-auto grid max-w-5xl gap-8 px-6 pb-12 pt-12 md:grid-cols-[1fr_220px] md:pt-16">
+          <div>
           <p className="flex animate-hero-in items-center gap-2 font-mono text-xs text-brand-600 dark:text-brand-500">
             <span className="relative inline-flex h-1.5 w-1.5">
               <span className="absolute inset-0 animate-ping rounded-full bg-brand-500 opacity-75" />
@@ -237,11 +260,32 @@ export function LandingPage() {
               </>
             )}
           </div>
+          </div>
+
+          {/* index rail — "inside this edition" like a front-page index */}
+          <nav className="hidden animate-hero-in flex-col border-l-2 border-ink/60 pl-4 md:flex dark:border-stone-400/60" style={{ animationDelay: '300ms' }} aria-label="Inside this edition">
+            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-subtle dark:text-stone-500">inside this edition</p>
+            {[
+              ['§01', 'Desk lineup', '#desks'],
+              ['§02', 'By hand → one filing', '#wire'],
+              ['§03', 'A press day', '#pressday'],
+              ['§04', 'Inside the newsroom', '#newsroom'],
+            ].map(([n, t, href]) => (
+              <a key={n} href={href} className="group mt-4 flex items-baseline justify-between gap-3 font-display text-sm transition-colors hover:text-brand-600 dark:hover:text-brand-500">
+                <span className="font-mono text-xs text-brand-600 dark:text-brand-500">{n}</span>
+                <span className="flex-1 border-b border-dotted border-stone-300 dark:border-stone-700" aria-hidden="true" />
+                <span className="text-ink-muted group-hover:text-brand-600 dark:text-stone-400">{t}</span>
+              </a>
+            ))}
+            <p className="mt-auto pt-8 font-mono text-[10px] leading-relaxed text-ink-subtle dark:text-stone-600">
+              filed under: social automation · no video, ever
+            </p>
+          </nav>
         </div>
       </section>
 
       {/* Act II — the desks this newsroom files to */}
-      <div className="border-b border-stone-200 dark:border-stone-800">
+      <div id="desks" className="scroll-mt-4 border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto grid max-w-5xl grid-cols-2 gap-x-6 px-6 sm:grid-cols-4 sm:gap-x-0">
           {DESKS.map(({ name, freq, Icon }, i) => (
             <Reveal
@@ -289,7 +333,7 @@ export function LandingPage() {
       </section>
 
       {/* Act III — by hand vs. one filing */}
-      <section className="border-b border-stone-200 dark:border-stone-800">
+      <section id="wire" className="scroll-mt-4 border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-14">
           <Reveal>
             <p className="font-mono text-xs text-brand-600 dark:text-brand-500">
@@ -409,7 +453,7 @@ export function LandingPage() {
       </section>
 
       {/* The proof — a press day, logged */}
-      <section className="border-b border-stone-200 bg-surface dark:border-stone-800 dark:bg-[#211d18]">
+      <section id="pressday" className="scroll-mt-4 border-b border-stone-200 bg-surface dark:border-stone-800 dark:bg-[#211d18]">
         <div className="mx-auto max-w-5xl px-6 py-12">
           <Reveal>
             <h2 className="flex items-center gap-2.5 font-display text-xl font-semibold">
@@ -437,7 +481,7 @@ export function LandingPage() {
       </section>
 
       {/* Act IV — what the desk handles for you */}
-      <section className="border-b border-stone-200 dark:border-stone-800">
+      <section id="newsroom" className="scroll-mt-4 border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-12">
           <Reveal>
             <div className="flex items-center justify-between">
@@ -477,6 +521,11 @@ export function LandingPage() {
           </div>
         </section>
       )}
+
+      {/* —30— the traditional press end-mark */}
+      <p className="border-b border-stone-200 py-6 text-center font-mono text-sm tracking-[0.5em] text-ink-subtle dark:border-stone-800 dark:text-stone-600" aria-hidden="true">
+        —30—
+      </p>
 
       <footer className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 font-mono text-xs text-ink-subtle dark:text-stone-500">
         <span>OmniNews — post scheduling for Facebook, Threads, Reddit &amp; X</span>

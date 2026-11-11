@@ -115,6 +115,10 @@ export default {
           '0%, 55%': { opacity: '1' },
           '56%, 100%': { opacity: '0.15' },
         },
+        marquee: {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(-50%)' },
+        },
       },
       animation: {
         'hero-in': 'hero-in 0.85s cubic-bezier(0.22, 1, 0.36, 1) both',
@@ -131,6 +135,7 @@ export default {
         'done-pop': 'done-pop 9s linear both infinite',
         eq: 'eq 1.15s ease-in-out infinite',
         blink: 'blink 1.4s steps(1) infinite',
+        marquee: 'marquee 36s linear infinite',
       },
     },
   },
