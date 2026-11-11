@@ -1,9 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
   <rect width="256" height="256" rx="56" fill="#1c1917"/>
-  <path fill="#f7f4ec" fill-rule="evenodd" d="M 76 60 L 180 60 L 192 72 V 184 H 200 V 200 H 56 V 184 H 64 V 72 Z
-    M 128 92 A 36 36 0 1 0 128 164 A 36 36 0 1 0 128 92 Z
-    M 128 110 A 18 18 0 1 1 128 146 A 18 18 0 1 1 128 110 Z
-    M 92 184 H 104 V 192 H 92 Z
-    M 122 184 H 134 V 192 H 122 Z
-    M 152 184 H 164 V 192 H 152 Z"/>
+  <path d="M64 58 H176 L192 74 V198 H64 Z" fill="#f7f4ec"/>
+  <path d="M176 58 L192 74 H176 Z" fill="#8a8474"/>
+  <rect x="76" y="84" width="84" height="10" rx="2" fill="#9c1f2c"/>
+  <rect x="76" y="108" width="50" height="5" rx="2.5" fill="#b8b2a5"/>
+  <rect x="76" y="122" width="50" height="5" rx="2.5" fill="#b8b2a5"/>
+  <rect x="76" y="136" width="50" height="5" rx="2.5" fill="#b8b2a5"/>
+  <rect x="76" y="150" width="50" height="5" rx="2.5" fill="#b8b2a5"/>
+  <rect x="134" y="108" width="44" height="5" rx="2.5" fill="#b8b2a5"/>
+  <rect x="134" y="122" width="44" height="5" rx="2.5" fill="#b8b2a5"/>
+  <rect x="134" y="136" width="44" height="5" rx="2.5" fill="#b8b2a5"/>
+  <rect x="134" y="150" width="44" height="5" rx="2.5" fill="#b8b2a5"/>
+  <rect x="76" y="170" width="102" height="5" rx="2.5" fill="#8a8474"/>
 </svg>
