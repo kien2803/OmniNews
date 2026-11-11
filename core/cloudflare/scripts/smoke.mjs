@@ -100,9 +100,13 @@ let accounts = [];
 
 // ── schedule → cron → queue → publish ───────────────────────────────
 // scheduled_at must be ≥60s out; the next cron tick claims it once due.
-const publishOk = articleId && accounts.length;
+// SMOKE_SKIP_PUBLISH=1 skips the publish leg — remote dev has no queue
+// consumers, so posts would sit 'uploading' until the poll deadline.
+const publishOk = articleId && accounts.length && process.env.SMOKE_SKIP_PUBLISH !== '1';
 let posts = [];
-if (publishOk) {
+if (process.env.SMOKE_SKIP_PUBLISH === '1') {
+  console.log('  · schedule/publish path — skipped (SMOKE_SKIP_PUBLISH=1)');
+} else if (publishOk) {
   const when = Date.now() + 61_000;
   const created = await api('/schedule', {
     method: 'POST', token,

@@ -19,10 +19,7 @@ run_worker_first = ["/api/*", "/auth/*", "/health"]
 [[d1_databases]]
 binding = "DB"
 database_name = "omninews-db"
-# OmniNews is an independent project — create its own D1 with
-#   wrangler d1 create omninews-db
-# then paste the new database_id here. Do NOT reuse OmniCast's id.
-database_id = "REPLACE_WITH_NEW_D1_ID"
+database_id = "1a1a3c27-f11b-422f-a4a1-a40074a80a9a"
 migrations_dir = "migrations"
 
 # ── R2 (optional object storage — articles store image URLs, no binary) ──────────────────────────────────
