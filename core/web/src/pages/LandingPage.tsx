@@ -10,10 +10,10 @@ import {
 } from '../components/icons.js';
 
 const DESKS = [
-  { name: 'Facebook', freq: 'DSK-01', scope: 'pages_manage_posts', Icon: IconFacebook },
-  { name: 'Threads', freq: 'DSK-02', scope: 'threads_content_publish', Icon: IconThreads },
-  { name: 'Reddit', freq: 'DSK-03', scope: 'identity · submit', Icon: IconReddit },
-  { name: 'X', freq: 'DSK-04', scope: 'tweet.write · offline', Icon: IconX },
+  { name: 'Facebook', desk: 'DSK-01', scope: 'pages_manage_posts', Icon: IconFacebook },
+  { name: 'Threads', desk: 'DSK-02', scope: 'threads_content_publish', Icon: IconThreads },
+  { name: 'Reddit', desk: 'DSK-03', scope: 'identity · submit', Icon: IconReddit },
+  { name: 'X', desk: 'DSK-04', scope: 'tweet.write · offline', Icon: IconX },
 ] as const;
 
 const WIRE_LOG = [
@@ -24,33 +24,6 @@ const WIRE_LOG = [
   { time: '09:16', event: 'retry lands · DSK-04 OK — edition complete' },
 ] as const;
 
-// Uneven cadence on purpose — hand-posting never lands on a metronome.
-const MANUAL_TEMPO = [0, 1.85, 4.1, 6.3] as const;
-
-// The fan-out scene: SVG paths (viewBox 320x200) from the story node at
-// (160,182) up to each desk. x/y are the endpoints in %, where the HTML
-// nodes sit — they stay aligned since the svg stretches with them.
-const FANOUT = [
-  { d: 'M160 182 C 95 140 55 95 40 44', x: 12.5, y: 22, name: 'Facebook', Icon: IconFacebook },
-  { d: 'M160 182 C 132 122 120 72 120 30', x: 37.5, y: 15, name: 'Threads', Icon: IconThreads },
-  { d: 'M160 182 C 188 122 200 72 200 30', x: 62.5, y: 15, name: 'Reddit', Icon: IconReddit },
-  { d: 'M160 182 C 225 140 265 95 280 44', x: 87.5, y: 22, name: 'X', Icon: IconX },
-] as const;
-
-function Eq({ className = '', bars = 3, delay = 0 }: { className?: string; bars?: number; delay?: number }) {
-  return (
-    <span className={`flex items-end gap-[2px] ${className}`} aria-hidden="true">
-      {Array.from({ length: bars }, (_, b) => (
-        <span
-          key={b}
-          className="h-full w-[2px] origin-bottom animate-eq rounded-sm bg-current"
-          style={{ animationDelay: `${delay + b * 0.17}s` }}
-        />
-      ))}
-    </span>
-  );
-}
-
 const CAPABILITIES = [
   ['Sealed desk auth', 'OAuth per platform, tokens encrypted at rest, several desks per account.'],
   ['Write once', 'Title, body, link, photos — one story filed to every desk.'],
@@ -58,6 +31,15 @@ const CAPABILITIES = [
   ['Self-healing file', 'Backoff retries on transient failure; dead letters flagged, not dropped.'],
   ['Quota governor', 'Per-platform daily budgets enforced before anything goes out.'],
   ['Wire log', 'Full publish history, desk stats and per-platform analytics.'],
+] as const;
+
+// Figure 1 — the wire map. SVG paths (viewBox 320x200) from the story node
+// at (160,182) up to each desk. x/y are endpoint positions in %.
+const FANOUT = [
+  { d: 'M160 182 C 95 140 55 95 40 44', x: 12.5, y: 22, name: 'Facebook', Icon: IconFacebook },
+  { d: 'M160 182 C 132 122 120 72 120 30', x: 37.5, y: 15, name: 'Threads', Icon: IconThreads },
+  { d: 'M160 182 C 188 122 200 72 200 30', x: 62.5, y: 15, name: 'Reddit', Icon: IconReddit },
+  { d: 'M160 182 C 225 140 265 95 280 44', x: 87.5, y: 22, name: 'X', Icon: IconX },
 ] as const;
 
 type RevealVariant = 'up' | 'left' | 'pop';
@@ -117,16 +99,91 @@ function Reveal({
   );
 }
 
+/** § header — numbered section masthead with a double rule, newspaper style. */
+function SectionHead({ n, title, kicker }: { n: string; title: string; kicker?: string }) {
+  return (
+    <Reveal>
+      <div className="border-t-4 border-double border-ink/70 pt-3 dark:border-stone-400/60">
+        <div className="flex items-baseline justify-between gap-4">
+          <h2 className="font-display text-2xl font-bold tracking-tight">
+            <span className="mr-2.5 font-mono text-xs font-normal text-brand-600 dark:text-brand-500">{n}</span>
+            {title}
+          </h2>
+          {kicker && (
+            <span className="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-ink-subtle sm:inline dark:text-stone-500">
+              {kicker}
+            </span>
+          )}
+        </div>
+      </div>
+    </Reveal>
+  );
+}
+
+/** Fig 1 — the wire map as a print figure: dashed wire routes, red copy
+ *  packets in transit, desk chips at the endpoints, story card at the base. */
+function WireFigure() {
+  return (
+    <figure className="border border-ink/60 bg-surface p-4 dark:border-stone-500/60 dark:bg-[#211d18]">
+      <div className="relative h-56" role="img" aria-label="One story filed to Facebook, Threads, Reddit and X at the same time">
+        <svg
+          className="absolute inset-0 h-full w-full text-ink/40 dark:text-stone-500"
+          viewBox="0 0 320 200"
+          preserveAspectRatio="none"
+          fill="none"
+          aria-hidden="true"
+        >
+          {FANOUT.map(({ d }) => (
+            <path key={d} d={d} stroke="currentColor" strokeWidth="1" strokeDasharray="3 5" />
+          ))}
+          {FANOUT.flatMap(({ d }, i) =>
+            [0, 1.3].map((off) => (
+              <circle key={`${i}-${off}`} r="3" className="motion-hide fill-brand-500">
+                <animateMotion dur="2.6s" begin={`${i * 0.4 + off}s`} repeatCount="indefinite" path={d} />
+              </circle>
+            )),
+          )}
+        </svg>
+        {FANOUT.map(({ x, y, name, Icon }, i) => (
+          <span
+            key={name}
+            className="absolute -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${x}%`, top: `${y}%` }}
+          >
+            <span
+              className="flex animate-node-pop flex-col items-center gap-1"
+              style={{ animationDelay: `${i * 0.4}s` }}
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-sm border border-stone-300 bg-surface shadow-soft dark:border-stone-600 dark:bg-[#262019]">
+                <Icon className="h-4 w-4 text-ink dark:text-stone-200" />
+              </span>
+              <span className="font-mono text-[9px] uppercase tracking-widest text-ink-subtle dark:text-stone-500">
+                {name}
+              </span>
+            </span>
+          </span>
+        ))}
+        <span className="absolute left-1/2 top-[91%] flex h-14 w-11 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-sm border border-ink/50 bg-surface shadow-soft dark:border-stone-500 dark:bg-[#262019]">
+          <span className="absolute inset-0 animate-ring rounded-sm border border-brand-500/50" />
+          <IconUpload className="h-4 w-4 text-brand-600 dark:text-brand-500" />
+          <span className="font-mono text-[9px] text-ink-subtle dark:text-stone-500">story.md</span>
+        </span>
+      </div>
+      <figcaption className="mt-3 border-t border-stone-200 pt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-ink-subtle dark:border-stone-700 dark:text-stone-500">
+        fig. 1 — one filing reaches four desks
+      </figcaption>
+    </figure>
+  );
+}
+
 export function LandingPage() {
   const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-screen bg-[#f7f4ec] font-sans text-ink dark:bg-[#171410] dark:text-stone-100">
-      {/* Masthead — a real front page: utility row, centered wordmark
-          between double rules, dateline strip, then the live wire ticker */}
+      {/* ── Masthead ─────────────────────────────────────────────────── */}
       <header>
-        {/* utility row — thin, quiet */}
-        <div className="border-b border-stone-200 dark:border-stone-800">
+        <div className="border-b border-stone-300/80 dark:border-stone-800">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500">
             <span>the newsroom for social posts</span>
             <nav className="flex items-center gap-3 normal-case tracking-normal">
@@ -141,17 +198,15 @@ export function LandingPage() {
             </nav>
           </div>
         </div>
-        {/* wordmark — centered like a newspaper masthead */}
         <div className="mx-auto flex max-w-5xl flex-col items-center px-6 pb-4 pt-6 text-center">
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="" className="h-9 w-9" />
+            <img src="/logo.svg" alt="" className="h-10 w-10" />
             <span className="font-display text-5xl font-bold tracking-tight md:text-6xl">OmniNews</span>
           </div>
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-subtle dark:text-stone-500">
+          <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-subtle dark:text-stone-500">
             all the desks that fit to print · est. mmxxvi
           </p>
         </div>
-        {/* dateline strip — collar between double rules */}
         <div className="border-y-4 border-double border-ink/70 dark:border-stone-400/60">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500">
             <span>vol. 01 · late edition</span>
@@ -159,8 +214,7 @@ export function LandingPage() {
             <span>price: one story</span>
           </div>
         </div>
-        {/* wire ticker — the day&apos;s log scrolling under the masthead */}
-        <div className="overflow-hidden border-b border-stone-200 bg-ink py-1.5 text-surface dark:border-stone-800 dark:bg-stone-100 dark:text-ink" aria-hidden="true">
+        <div className="overflow-hidden bg-ink py-1.5 text-surface dark:bg-stone-100 dark:text-ink" aria-hidden="true">
           <div className="flex w-max animate-marquee gap-8 whitespace-nowrap px-4 font-mono text-[11px]">
             {[0, 1].map((dup) => (
               <span key={dup} className="flex gap-8">
@@ -173,154 +227,98 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Act I — masthead: editorial identity over a live wire */}
-      <section className="relative overflow-hidden border-b border-stone-200 dark:border-stone-800">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          {/* drifting wires — each layer also bobs, so the drift
-              never reads as a straight conveyor belt */}
-          <div className="absolute bottom-8 left-0 h-14 w-full animate-bob-a">
-            <svg
-              className="h-full w-[200%] min-w-[1600px] animate-wave-a text-stone-300/80 dark:text-stone-700/70"
-              viewBox="0 0 2400 64"
-              preserveAspectRatio="none"
-              fill="none"
-            >
-              <path
-                d="M0 32 Q150 8 300 32 T600 32 T900 32 T1200 32 T1500 32 T1800 32 T2100 32 T2400 32"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-            </svg>
-          </div>
-          <div className="absolute bottom-14 left-0 h-14 w-full animate-bob-b">
-            <svg
-              className="h-full w-[200%] min-w-[1600px] animate-wave-b text-brand-500/25 dark:text-brand-500/20"
-              viewBox="0 0 2400 64"
-              preserveAspectRatio="none"
-              fill="none"
-            >
-              <path
-                d="M0 38 Q150 58 300 38 T600 38 T900 38 T1200 38 T1500 38 T1800 38 T2100 38 T2400 38"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-            </svg>
-          </div>
-          {/* column rules — two hairlines sweeping the page, out of phase */}
-          <div className="absolute inset-y-0 w-px animate-sweep bg-stone-400/40 dark:bg-stone-500/30" />
-          <div className="absolute inset-y-0 w-px animate-sweep bg-stone-300/50 [animation-delay:-6.5s] dark:bg-stone-600/40" />
-          {/* the desk — a breathing source radiating deadline rings */}
-          <div className="absolute right-12 top-10 hidden h-32 w-32 md:block">
-            <span className="absolute inset-0 animate-ring rounded-full border border-brand-500/50 dark:border-brand-500/40" />
-            <span className="absolute inset-0 animate-ring rounded-full border border-brand-500/50 [animation-delay:1.4s] dark:border-brand-500/40" />
-            <span className="absolute inset-0 animate-ring rounded-full border border-brand-500/50 [animation-delay:2.8s] dark:border-brand-500/40" />
-            <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 animate-breathe rounded-full bg-brand-500" />
-          </div>
-        </div>
-
-        <div className="relative mx-auto grid max-w-5xl gap-8 px-6 pb-12 pt-12 md:grid-cols-[1fr_220px] md:pt-16">
-          <div>
-          <p className="flex animate-hero-in items-center gap-2 font-mono text-xs text-brand-600 dark:text-brand-500">
-            <span className="relative inline-flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-brand-500 opacity-75" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-brand-500" />
-            </span>
-            the wire · multi-desk post scheduler
-          </p>
+      {/* ── Front page — banner headline + lead story + figure rail ──── */}
+      <section className="border-b border-stone-300/80 dark:border-stone-800">
+        <div className="mx-auto max-w-5xl px-6 pb-12 pt-10 md:pt-14">
           <h1
-            className="mt-4 max-w-3xl animate-hero-in font-display text-4xl font-semibold leading-[1.06] tracking-tight md:text-6xl"
-            style={{ animationDelay: '120ms' }}
+            className="animate-hero-in max-w-4xl font-display text-[11.5vw] font-bold leading-[0.98] tracking-tight sm:text-6xl md:text-7xl"
           >
-            One story. Every desk, on deadline.
+            File one story. Every desk prints it.
           </h1>
           <p
-            className="mt-2 animate-hero-in font-mono text-[11px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500"
-            style={{ animationDelay: '180ms' }}
+            className="mt-5 animate-hero-in font-mono text-[11px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500"
+            style={{ animationDelay: '140ms' }}
           >
             by the omninews desk — today's edition
           </p>
-          <p
-            className="mt-6 max-w-xl animate-hero-in text-base leading-relaxed text-ink-muted dark:text-stone-400"
-            style={{ animationDelay: '240ms' }}
-          >
-            OmniNews files a single story — title, body, link, photos — to
-            Facebook, Threads, Reddit and X at the times you set. Retries,
-            quotas and the wire log are handled by the desk, not by you.
-          </p>
-          <div
-            className="mt-8 flex animate-hero-in flex-wrap items-center gap-3"
-            style={{ animationDelay: '360ms' }}
-          >
-            {isAuthenticated ? (
-              <Link to="/dashboard" className="btn-primary px-6 py-3 text-base">Open Dashboard</Link>
-            ) : (
-              <>
-                <Link to="/register" className="btn-primary px-6 py-3 text-base">Create free account</Link>
-                <Link to="/login" className="btn-secondary px-6 py-3 text-base">Sign in</Link>
-              </>
-            )}
-          </div>
-          </div>
 
-          {/* index rail — "inside this edition" like a front-page index */}
-          <nav className="hidden animate-hero-in flex-col border-l-2 border-ink/60 pl-4 md:flex dark:border-stone-400/60" style={{ animationDelay: '300ms' }} aria-label="Inside this edition">
-            <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-subtle dark:text-stone-500">inside this edition</p>
-            {[
-              ['§01', 'Desk lineup', '#desks'],
-              ['§02', 'By hand → one filing', '#wire'],
-              ['§03', 'A press day', '#pressday'],
-              ['§04', 'Inside the newsroom', '#newsroom'],
-            ].map(([n, t, href]) => (
-              <a key={n} href={href} className="group mt-4 flex items-baseline justify-between gap-3 font-display text-sm transition-colors hover:text-brand-600 dark:hover:text-brand-500">
-                <span className="font-mono text-xs text-brand-600 dark:text-brand-500">{n}</span>
-                <span className="flex-1 border-b border-dotted border-stone-300 dark:border-stone-700" aria-hidden="true" />
-                <span className="text-ink-muted group-hover:text-brand-600 dark:text-stone-400">{t}</span>
-              </a>
-            ))}
-            <p className="mt-auto pt-8 font-mono text-[10px] leading-relaxed text-ink-subtle dark:text-stone-600">
-              filed under: social automation · no video, ever
-            </p>
-          </nav>
+          <div className="mt-8 grid gap-10 md:grid-cols-[1fr_320px] md:gap-12">
+            {/* lead story column */}
+            <div>
+              <p
+                className="animate-hero-in max-w-xl text-[15px] leading-[1.75] text-ink-muted dark:text-stone-400"
+                style={{ animationDelay: '240ms' }}
+              >
+                OmniNews files a single story — title, body, link, photos — to
+                Facebook, Threads, Reddit and X at the times you set. Retries,
+                quotas and the wire log are handled by the desk, not by you.
+              </p>
+              <div
+                className="mt-7 flex animate-hero-in flex-wrap items-center gap-3"
+                style={{ animationDelay: '340ms' }}
+              >
+                {isAuthenticated ? (
+                  <Link to="/dashboard" className="btn-primary px-6 py-3 text-base">Open Dashboard</Link>
+                ) : (
+                  <>
+                    <Link to="/register" className="btn-primary px-6 py-3 text-base">Create free account</Link>
+                    <Link to="/login" className="btn-secondary px-6 py-3 text-base">Sign in</Link>
+                  </>
+                )}
+              </div>
+
+              {/* pull quote — the pitch restated as a front-page quote */}
+              <blockquote
+                className="mt-10 animate-hero-in border-l-2 border-brand-600 pl-5 font-display text-xl italic leading-snug text-ink dark:border-brand-500 dark:text-stone-200"
+                style={{ animationDelay: '440ms' }}
+              >
+                "The desk remembers every deadline, so you don't have to."
+              </blockquote>
+            </div>
+
+            {/* figure rail — lead image slot is our product's own diagram */}
+            <div className="animate-hero-in" style={{ animationDelay: '300ms' }}>
+              <WireFigure />
+              {/* in this edition — boxed index */}
+              <nav className="mt-6 border border-ink/60 p-4 dark:border-stone-500/60" aria-label="Inside this edition">
+                <p className="border-b border-stone-200 pb-2 font-mono text-[10px] uppercase tracking-[0.25em] text-ink-subtle dark:border-stone-700 dark:text-stone-500">
+                  inside this edition
+                </p>
+                {[
+                  ['§01', 'Desk lineup', '#desks'],
+                  ['§02', 'By hand → one filing', '#wire'],
+                  ['§03', 'A press day', '#pressday'],
+                  ['§04', 'Inside the newsroom', '#newsroom'],
+                ].map(([n, t, href]) => (
+                  <a
+                    key={n}
+                    href={href}
+                    className="group mt-3 flex items-baseline gap-3 font-display text-sm transition-colors hover:text-brand-600 dark:hover:text-brand-500"
+                  >
+                    <span className="font-mono text-xs text-brand-600 dark:text-brand-500">{n}</span>
+                    <span className="flex-1 border-b border-dotted border-stone-300 dark:border-stone-700" aria-hidden="true" />
+                    <span className="text-ink-muted group-hover:text-brand-600 dark:text-stone-400">{t}</span>
+                  </a>
+                ))}
+              </nav>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Act II — the desks this newsroom files to */}
-      <div id="desks" className="scroll-mt-4 border-b border-stone-200 dark:border-stone-800">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-x-6 px-6 sm:grid-cols-4 sm:gap-x-0">
-          {DESKS.map(({ name, freq, Icon }, i) => (
-            <Reveal
-              key={name}
-              variant="pop"
-              delay={i * 90}
-              className="group flex items-center gap-3.5 border-stone-200 py-6 transition-colors hover:bg-surface sm:-mx-3 sm:border-l sm:pl-9 sm:pr-3 sm:first:border-l-0 sm:first:pl-3 dark:border-stone-800 dark:hover:bg-[#221e19]"
-            >
-              <Icon className="h-6 w-6 shrink-0 text-ink-subtle transition-all duration-300 group-hover:-translate-y-0.5 group-hover:text-brand-600 dark:text-stone-500 dark:group-hover:text-brand-500" />
-              <span className="flex min-w-0 flex-col">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-ink-subtle dark:text-stone-500">
-                  {freq}
-                </span>
-                <span className="truncate font-display text-sm font-medium">{name}</span>
-              </span>
-              <Eq className="ml-auto h-3.5 text-ink-subtle/70 dark:text-stone-600" delay={i * 0.45} />
-            </Reveal>
-          ))}
-        </div>
-      </div>
-
-      <section className="border-b border-stone-200 dark:border-stone-800">
+      {/* ── §01 Desk lineup — the staff box ──────────────────────────── */}
+      <section id="desks" className="scroll-mt-6 border-b border-stone-300/80 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-12">
-          <Reveal>
-            <h2 className="font-display text-xl font-semibold"><span className="mr-2 font-mono text-xs font-normal text-brand-600 dark:text-brand-500">§01</span>Desk lineup</h2>
-          </Reveal>
-          <div className="mt-4 border-t border-stone-200 dark:border-stone-800">
+          <SectionHead n="§01" title="Desk lineup" kicker="the desks this newsroom files to" />
+          <div className="mt-6 border-t border-stone-300/80 dark:border-stone-700">
             {DESKS.map((s, i) => (
               <Reveal
                 key={s.name}
                 variant="left"
                 delay={i * 80}
-                className="grid grid-cols-[88px_1fr_auto] items-baseline gap-4 border-b border-stone-200 py-4 sm:grid-cols-[100px_1fr_1fr] dark:border-stone-800"
+                className="grid grid-cols-[84px_1fr_auto] items-baseline gap-4 border-b border-stone-300/80 py-4 sm:grid-cols-[100px_1fr_1fr] dark:border-stone-700"
               >
-                <span className="font-mono text-xs text-ink-subtle dark:text-stone-500">{s.freq}</span>
+                <span className="font-mono text-xs text-ink-subtle dark:text-stone-500">{s.desk}</span>
                 <span className="flex items-center gap-2.5 font-display font-medium">
                   <s.Icon className="h-4 w-4" />
                   {s.name}
@@ -329,172 +327,84 @@ export function LandingPage() {
               </Reveal>
             ))}
           </div>
+          <Reveal delay={340}>
+            <p className="mt-3 font-mono text-[11px] text-ink-subtle dark:text-stone-500">
+              four desks, one filing window — more desks can hold the same platform
+            </p>
+          </Reveal>
         </div>
       </section>
 
-      {/* Act III — by hand vs. one filing */}
-      <section id="wire" className="scroll-mt-4 border-b border-stone-200 dark:border-stone-800">
+      {/* ── §02 The wire — the lead figure, full width ───────────────── */}
+      <section id="wire" className="scroll-mt-6 border-b border-stone-300/80 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-14">
-          <Reveal>
-            <p className="font-mono text-xs text-brand-600 dark:text-brand-500">
-              §02 · by hand → one filing
-            </p>
-            <h2 className="mt-3 max-w-2xl font-display text-2xl font-semibold tracking-tight md:text-3xl">
-              Same story, four desks — one filing.
-            </h2>
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-ink-muted dark:text-stone-400">
-              Cross-posting by hand means signing in and reposting to every
-              platform, one account at a time. OmniNews turns it into a single
-              filing: write once and the desk puts it on every wire at once.
-            </p>
-          </Reveal>
-
-          <div className="mt-10 grid gap-10 sm:grid-cols-2 sm:gap-8">
-            {/* before — one submission per desk, one at a time */}
+          <SectionHead n="§02" title="By hand → one filing" kicker="the relay, drawn" />
+          <div className="mt-8 grid items-start gap-10 md:grid-cols-[1fr_1.1fr]">
             <Reveal variant="left" delay={120}>
-              <figure>
-                <figcaption className="flex items-baseline justify-between border-b border-stone-200 pb-3 font-mono text-[11px] uppercase tracking-widest text-ink-subtle dark:border-stone-800 dark:text-stone-500">
-                  <span>by hand</span>
-                  <span>4 submissions · serial</span>
-                </figcaption>
-                <div className="mt-6 space-y-3">
-                  {DESKS.map(({ name, Icon }, i) => (
-                    <div
-                      key={name}
-                      className="rounded-sm border border-stone-200 bg-surface px-3 py-2.5 shadow-soft dark:border-stone-700 dark:bg-[#262019]"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Icon className="h-3.5 w-3.5 text-ink-subtle dark:text-stone-500" />
-                        <span className="font-mono text-[10px] text-ink-muted dark:text-stone-400">
-                          {name} · posting…
-                        </span>
-                        <span
-                          className="ml-auto animate-done-pop font-mono text-[9px] uppercase tracking-widest text-success-500"
-                          style={{ animationDelay: `${MANUAL_TEMPO[i]}s` }}
-                        >
-                          done
-                        </span>
-                      </div>
-                      <div className="relative mt-2 h-1 rounded-sm bg-stone-200 dark:bg-stone-700">
-                        <div
-                          className="absolute inset-y-0 left-0 w-0 animate-sig-bar rounded-sm bg-brand-500"
-                          style={{ animationDelay: `${MANUAL_TEMPO[i]}s` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <p className="mt-6 font-mono text-[11px] text-ink-subtle dark:text-stone-500">
-                  elapsed — one desk at a time
-                </p>
-              </figure>
+              <p className="font-display text-xl font-semibold leading-snug">
+                Same story, four desks — one filing.
+              </p>
+              <p className="mt-4 text-sm leading-[1.8] text-ink-muted dark:text-stone-400">
+                Cross-posting by hand means signing in and reposting to every
+                platform, one account at a time. OmniNews turns it into a
+                single filing: write once and the desk puts it on every wire
+                at once — on the deadline you set, in the deck that platform
+                allows.
+              </p>
+              <ul className="mt-5 space-y-2.5 border-t border-stone-300/80 pt-5 text-sm dark:border-stone-700">
+                {[
+                  ['before', 'four sign-ins, four uploads, serial — an afternoon gone'],
+                  ['after', 'one filing, parallel — the desk does the walking'],
+                ].map(([k, v]) => (
+                  <li key={k} className="flex items-baseline gap-3">
+                    <span className={`font-mono text-[10px] uppercase tracking-widest ${k === 'after' ? 'text-brand-600 dark:text-brand-500' : 'text-ink-subtle dark:text-stone-500'}`}>{k}</span>
+                    <span className="text-ink-muted dark:text-stone-400">{v}</span>
+                  </li>
+                ))}
+              </ul>
             </Reveal>
-
-            {/* after — one filing, on every wire at once */}
             <Reveal delay={240}>
-              <figure>
-                <figcaption className="flex items-baseline justify-between border-b border-stone-200 pb-3 font-mono text-[11px] uppercase tracking-widest text-ink-subtle dark:border-stone-800 dark:text-stone-500">
-                  <span>on omninews</span>
-                  <span>1 filing · parallel</span>
-                </figcaption>
-                {/* wire map — copy rides the curves to every desk at once;
-                    desks flash as each filing lands */}
-                <div className="relative mt-6 h-60" role="img" aria-label="One story filed to Facebook, Threads, Reddit and X at the same time">
-                  <svg
-                    className="absolute inset-0 h-full w-full text-stone-300 dark:text-stone-600"
-                    viewBox="0 0 320 200"
-                    preserveAspectRatio="none"
-                    fill="none"
-                    aria-hidden="true"
-                  >
-                    {FANOUT.map(({ d }) => (
-                      <path key={d} d={d} stroke="currentColor" strokeWidth="1" strokeDasharray="2 6" />
-                    ))}
-                    {FANOUT.flatMap(({ d }, i) =>
-                      [0, 1.3].map((off) => (
-                        <circle key={`${i}-${off}`} r="3" className="motion-hide fill-brand-500">
-                          <animateMotion dur="2.6s" begin={`${i * 0.4 + off}s`} repeatCount="indefinite" path={d} />
-                        </circle>
-                      )),
-                    )}
-                  </svg>
-                  {FANOUT.map(({ x, y, name, Icon }, i) => (
-                    <span
-                      key={name}
-                      className="absolute -translate-x-1/2 -translate-y-1/2"
-                      style={{ left: `${x}%`, top: `${y}%` }}
-                    >
-                      <span
-                        className="flex animate-node-pop flex-col items-center gap-1"
-                        style={{ animationDelay: `${i * 0.4}s` }}
-                      >
-                        <span className="flex h-9 w-9 items-center justify-center rounded-sm border border-stone-200 bg-surface shadow-soft dark:border-stone-700 dark:bg-[#262019]">
-                          <Icon className="h-4 w-4 text-ink dark:text-stone-200" />
-                        </span>
-                        <span className="font-mono text-[9px] uppercase tracking-widest text-ink-subtle dark:text-stone-500">
-                          {name}
-                        </span>
-                      </span>
-                    </span>
-                  ))}
-                  <span className="absolute left-1/2 top-[91%] flex h-14 w-11 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-1 rounded-sm border border-stone-200 bg-surface shadow-soft dark:border-stone-700 dark:bg-[#262019]">
-                    <span className="absolute inset-0 animate-ring rounded-sm border border-brand-500/50" />
-                    <IconUpload className="h-4 w-4 text-brand-600 dark:text-brand-500" />
-                    <span className="font-mono text-[9px] text-ink-subtle dark:text-stone-500">story.md</span>
-                  </span>
-                </div>
-                <p className="mt-6 font-mono text-[11px] text-ink-subtle dark:text-stone-500">
-                  filed — every desk at once
-                </p>
-              </figure>
+              <WireFigure />
             </Reveal>
           </div>
         </div>
       </section>
 
-      {/* The proof — a press day, logged */}
-      <section id="pressday" className="scroll-mt-4 border-b border-stone-200 bg-surface dark:border-stone-800 dark:bg-[#211d18]">
+      {/* ── §03 A press day — the wire, logged ───────────────────────── */}
+      <section id="pressday" className="scroll-mt-6 border-b border-stone-300/80 bg-surface dark:border-stone-800 dark:bg-[#211d18]">
         <div className="mx-auto max-w-5xl px-6 py-12">
-          <Reveal>
-            <h2 className="flex items-center gap-2.5 font-display text-xl font-semibold">
-              <span className="font-mono text-xs font-normal text-brand-600 dark:text-brand-500">§03</span>A press day
-              <span className="relative inline-flex h-1.5 w-1.5">
-                <span className="absolute inset-0 animate-ping rounded-full bg-brand-500 opacity-75" />
-                <span className="relative h-1.5 w-1.5 rounded-full bg-brand-500" />
-              </span>
-            </h2>
-          </Reveal>
-          <div className="mt-4 border-t border-stone-200 font-mono text-sm dark:border-stone-800">
+          <SectionHead n="§03" title="A press day" kicker="from the wire — every filing logged" />
+          <div className="mt-6 border-t border-stone-300/80 font-mono text-sm dark:border-stone-700">
             {WIRE_LOG.map((e, i) => (
               <Reveal
                 key={i}
                 variant="left"
                 delay={i * 90}
-                className="grid grid-cols-[64px_1fr] gap-4 border-b border-stone-200 py-3.5 dark:border-stone-800"
+                className="grid grid-cols-[64px_1fr] gap-4 border-b border-stone-300/80 py-3.5 dark:border-stone-700"
               >
                 <span className="text-ink-subtle dark:text-stone-500">{e.time}</span>
                 <span className="text-ink-muted dark:text-stone-300">{e.event}</span>
               </Reveal>
             ))}
           </div>
+          <Reveal delay={460}>
+            <p className="mt-3 font-mono text-[11px] text-ink-subtle dark:text-stone-500">
+              retries are quiet; the log is not — every attempt is on the record
+            </p>
+          </Reveal>
         </div>
       </section>
 
-      {/* Act IV — what the desk handles for you */}
-      <section id="newsroom" className="scroll-mt-4 border-b border-stone-200 dark:border-stone-800">
+      {/* ── §04 Inside the newsroom — what the desk handles ──────────── */}
+      <section id="newsroom" className="scroll-mt-6 border-b border-stone-300/80 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-12">
-          <Reveal>
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-xl font-semibold"><span className="mr-2 font-mono text-xs font-normal text-brand-600 dark:text-brand-500">§04</span>Inside the newsroom</h2>
-              <Eq className="h-5 text-brand-500/80" bars={5} />
-            </div>
-          </Reveal>
-          <div className="mt-4 border-t border-stone-200 dark:border-stone-800">
+          <SectionHead n="§04" title="Inside the newsroom" kicker="what the desk handles for you" />
+          <div className="mt-6 border-t border-stone-300/80 dark:border-stone-700">
             {CAPABILITIES.map(([title, body], i) => (
               <Reveal
                 key={title}
                 delay={i * 70}
-                className="group grid gap-1 border-b border-stone-200 py-5 hover:bg-surface sm:grid-cols-[240px_1fr] sm:gap-8 sm:-mx-3 sm:px-3 dark:border-stone-800 dark:hover:bg-[#221e19]"
+                className="group grid gap-1 border-b border-stone-300/80 py-5 sm:grid-cols-[240px_1fr] sm:gap-8 dark:border-stone-700"
               >
                 <h3 className="font-display text-base font-medium transition-colors group-hover:text-brand-600 dark:group-hover:text-brand-500">{title}</h3>
                 <p className="text-sm leading-relaxed text-ink-muted dark:text-stone-400">{body}</p>
@@ -504,26 +414,32 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Sign off */}
+      {/* ── Classified — the order box ───────────────────────────────── */}
       {!isAuthenticated && (
-        <section className="border-b border-stone-200 dark:border-stone-800">
+        <section className="border-b border-stone-300/80 dark:border-stone-800">
           <div className="mx-auto max-w-5xl px-6 py-14">
             <Reveal>
-              <h2 className="font-display text-2xl font-semibold">File your first story</h2>
-              <p className="mt-2 max-w-md text-sm text-ink-muted dark:text-stone-400">
-                Create an account, connect a desk, and put your first story on
-                the wire in minutes.
-              </p>
-              <Link to="/register" className="btn-primary mt-6 inline-flex px-6 py-3 text-base">
-                Get started
-              </Link>
+              <div className="mx-auto max-w-xl border-y-4 border-double border-ink/70 px-6 py-8 text-center dark:border-stone-400/60">
+                <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-subtle dark:text-stone-500">
+                  classified · subscriptions open
+                </p>
+                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight">File your first story</h2>
+                <p className="mt-3 text-sm leading-relaxed text-ink-muted dark:text-stone-400">
+                  Create an account, connect a desk, and put your first story on
+                  the wire in minutes. Free to start — no card, no circulation
+                  department.
+                </p>
+                <Link to="/register" className="btn-primary mt-6 inline-flex px-6 py-3 text-base">
+                  Get started
+                </Link>
+              </div>
             </Reveal>
           </div>
         </section>
       )}
 
       {/* —30— the traditional press end-mark */}
-      <p className="border-b border-stone-200 py-6 text-center font-mono text-sm tracking-[0.5em] text-ink-subtle dark:border-stone-800 dark:text-stone-600" aria-hidden="true">
+      <p className="border-b border-stone-300/80 py-6 text-center font-mono text-sm tracking-[0.5em] text-ink-subtle dark:border-stone-800 dark:text-stone-600" aria-hidden="true">
         —30—
       </p>
 
