@@ -125,9 +125,10 @@ export function LandingPage() {
       {/* Masthead */}
       <header className="border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-          <Link to="/" className="flex items-center gap-2.5">
-            <img src="/logo.svg" alt="OmniNews" className="h-8 w-8" />
-            <span className="font-display text-lg font-semibold tracking-tight">OmniNews</span>
+          <Link to="/" className="flex items-baseline gap-2.5">
+            <img src="/logo.svg" alt="OmniNews" className="h-8 w-8 self-center" />
+            <span className="font-display text-2xl font-bold tracking-tight">OmniNews</span>
+            <span className="hidden font-mono text-[10px] uppercase tracking-[0.25em] text-ink-subtle sm:inline dark:text-stone-500">est. mmxxvi</span>
           </Link>
           <nav className="flex items-center gap-2">
             {isAuthenticated ? (
@@ -139,6 +140,14 @@ export function LandingPage() {
               </>
             )}
           </nav>
+        </div>
+        {/* dateline strip — the newspaper's collar */}
+        <div className="border-t border-stone-200 dark:border-stone-800">
+          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500">
+            <span>vol. 01 · late edition</span>
+            <span className="hidden sm:inline">filed daily from every desk</span>
+            <span>price: one story</span>
+          </div>
         </div>
       </header>
 
@@ -202,6 +211,12 @@ export function LandingPage() {
             One story. Every desk, on deadline.
           </h1>
           <p
+            className="mt-2 animate-hero-in font-mono text-[11px] uppercase tracking-[0.2em] text-ink-subtle dark:text-stone-500"
+            style={{ animationDelay: '180ms' }}
+          >
+            by the omninews desk — today's edition
+          </p>
+          <p
             className="mt-6 max-w-xl animate-hero-in text-base leading-relaxed text-ink-muted dark:text-stone-400"
             style={{ animationDelay: '240ms' }}
           >
@@ -251,7 +266,7 @@ export function LandingPage() {
       <section className="border-b border-stone-200 dark:border-stone-800">
         <div className="mx-auto max-w-5xl px-6 py-12">
           <Reveal>
-            <h2 className="font-display text-xl font-semibold">Desk lineup</h2>
+            <h2 className="font-display text-xl font-semibold"><span className="mr-2 font-mono text-xs font-normal text-brand-600 dark:text-brand-500">§01</span>Desk lineup</h2>
           </Reveal>
           <div className="mt-4 border-t border-stone-200 dark:border-stone-800">
             {DESKS.map((s, i) => (
@@ -278,7 +293,7 @@ export function LandingPage() {
         <div className="mx-auto max-w-5xl px-6 py-14">
           <Reveal>
             <p className="font-mono text-xs text-brand-600 dark:text-brand-500">
-              by hand → one filing
+              §02 · by hand → one filing
             </p>
             <h2 className="mt-3 max-w-2xl font-display text-2xl font-semibold tracking-tight md:text-3xl">
               Same story, four desks — one filing.
@@ -398,7 +413,7 @@ export function LandingPage() {
         <div className="mx-auto max-w-5xl px-6 py-12">
           <Reveal>
             <h2 className="flex items-center gap-2.5 font-display text-xl font-semibold">
-              A press day
+              <span className="font-mono text-xs font-normal text-brand-600 dark:text-brand-500">§03</span>A press day
               <span className="relative inline-flex h-1.5 w-1.5">
                 <span className="absolute inset-0 animate-ping rounded-full bg-brand-500 opacity-75" />
                 <span className="relative h-1.5 w-1.5 rounded-full bg-brand-500" />
@@ -426,7 +441,7 @@ export function LandingPage() {
         <div className="mx-auto max-w-5xl px-6 py-12">
           <Reveal>
             <div className="flex items-center justify-between">
-              <h2 className="font-display text-xl font-semibold">Inside the newsroom</h2>
+              <h2 className="font-display text-xl font-semibold"><span className="mr-2 font-mono text-xs font-normal text-brand-600 dark:text-brand-500">§04</span>Inside the newsroom</h2>
               <Eq className="h-5 text-brand-500/80" bars={5} />
             </div>
           </Reveal>
@@ -465,6 +480,7 @@ export function LandingPage() {
 
       <footer className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 font-mono text-xs text-ink-subtle dark:text-stone-500">
         <span>OmniNews — post scheduling for Facebook, Threads, Reddit &amp; X</span>
+        <span className="hidden md:inline">typeset in IBM Plex · printed on Cloudflare · all desks on deadline</span>
         <Link to="/privacy" className="underline underline-offset-2 hover:text-ink dark:hover:text-stone-300">Privacy</Link>
       </footer>
     </div>

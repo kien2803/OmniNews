@@ -5,9 +5,23 @@ SaaS social-media automation — viết bài một lần, schedule, publish lên
 > Project độc lập — fork/mở rộng từ OmniCast (video scheduler) nhưng deploy,
 > database, queues và domain riêng. Không chia sẻ D1/Queue với OmniCast.
 
-**Live**: https://omnicast.trunkynw2803.workers.dev
+**Live** (khi deploy): `https://omninews.trunkynw2803.workers.dev`
 
 > Proprietary — all rights reserved. Không phải self-hosted product; codebase private.
+
+## Local dev
+
+```bash
+pnpm install
+cp core/cloudflare/.dev.vars.example core/cloudflare/.dev.vars
+pnpm -F @omninews/cloudflare exec wrangler d1 migrations apply omninews-db --local
+pnpm -F @omninews/cloudflare db:seed:local            # 4 mock desks
+pnpm -F @omninews/cloudflare exec wrangler dev --port 5182 --test-scheduled   # API
+pnpm dev                                             # web :5173
+```
+
+`MOCK_PUBLISHERS=true` → publish trả `mock_*` id, E2E không cần OAuth thật.
+Trigger cron local: `GET /cdn-cgi/handler/scheduled`.
 
 ## Stack
 
