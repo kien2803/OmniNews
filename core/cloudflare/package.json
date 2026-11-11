@@ -10,7 +10,8 @@
     "db:migrate:local": "wrangler d1 migrations apply omninews-db --local",
     "db:migrate": "wrangler d1 migrations apply omninews-db --remote",
     "test": "vitest run",
-    "db:seed:local": "wrangler d1 execute omninews-db --local --file=./scripts/seed-local.sql"
+    "db:seed:local": "wrangler d1 execute omninews-db --local --file=./scripts/seed-local.sql",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

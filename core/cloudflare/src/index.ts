@@ -88,16 +88,28 @@ export default {
     // Reconcile posts stuck in 'uploading' (consumer crash / lost message)
     // older than 10 min back to pending before claiming fresh work.
     await new ScheduledPostsRepo(env.DB).unstickUploading(10 * 60 * 1000, now);
+    // Claim at most CLAIM_LIMIT per tick. Unbounded claiming broke on the
+    // queue's 500-messages-per-sendBatch cap: a big due pile made sendBatch
+    // throw, the cron died, and the posts wedged in 'uploading' in a loop.
+    const CLAIM_LIMIT = 500;
     const { results } = await env.DB.prepare(
       `UPDATE scheduled_posts SET status = 'uploading', updated_at = ?
-       WHERE status = 'pending' AND is_dead = 0
-         AND (scheduled_at <= ? OR (next_retry_at IS NOT NULL AND next_retry_at <= ?))
+       WHERE id IN (
+         SELECT id FROM scheduled_posts
+         WHERE status = 'pending' AND is_dead = 0
+           AND (scheduled_at <= ? OR (next_retry_at IS NOT NULL AND next_retry_at <= ?))
+         ORDER BY scheduled_at
+         LIMIT ?
+       )
        RETURNING id`,
     )
-      .bind(now, now, now)
+      .bind(now, now, now, CLAIM_LIMIT)
       .run<{ id: string }>();
     const jobs = (results ?? []).map((r) => ({ postId: r.id, attempt: 0 }));
-    if (jobs.length) ctx.waitUntil(env.PUBLISH_QUEUE.sendBatch(jobs.map((body) => ({ body }))));
+    // Chunk anyway — the claim cap and the queue cap are separate constants.
+    for (let i = 0; i < jobs.length; i += 500) {
+      ctx.waitUntil(env.PUBLISH_QUEUE.sendBatch(jobs.slice(i, i + 500).map((body) => ({ body }))));
+    }
     ctx.waitUntil(pollComments(env));
   },
 
