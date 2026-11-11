@@ -26,17 +26,23 @@ const check = (name, ok, detail = '') => {
 };
 
 const api = async (path, { method = 'GET', token, body } = {}) => {
-  const res = await fetch(`${BASE}/api${path}`, {
-    method,
-    headers: {
-      'content-type': 'application/json',
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  let json = null;
-  try { json = await res.json(); } catch { /* non-json */ }
-  return { status: res.status, json };
+  try {
+    const res = await fetch(`${BASE}/api${path}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(15_000),
+    });
+    let json = null;
+    try { json = await res.json(); } catch { /* non-json */ }
+    return { status: res.status, json };
+  } catch (e) {
+    // Transient network failure — caller decides whether it's fatal.
+    return { status: 0, json: null, error: e instanceof Error ? e.message : String(e) };
+  }
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -45,9 +51,15 @@ console.log(`smoke → ${BASE} (${EMAIL})\n`);
 
 // ── health ──────────────────────────────────────────────────────────
 {
-  const res = await fetch(`${BASE}/health`);
-  const j = await res.json().catch(() => ({}));
-  check('health', res.status === 200 && j.status === 'ok', `${res.status} ${j.status ?? ''}`);
+  try {
+    const res = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(15_000) });
+    const j = await res.json().catch(() => ({}));
+    check('health', res.status === 200 && j.status === 'ok', `${res.status} ${j.status ?? ''}`);
+  } catch (e) {
+    check('health', false, `unreachable: ${e instanceof Error ? e.message : e}`);
+    console.log('\nbase URL unreachable — aborting');
+    process.exit(1);
+  }
 }
 
 // ── auth ────────────────────────────────────────────────────────────
