@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { ArticlesRepo } from '../repos/articles';
 import { bearerUserId } from '../lib/auth';
+import { rateLimit } from '../lib/rateLimit';
 import type { ArticleRow } from '../repos/types';
 import type { Env } from '../env';
 
@@ -83,6 +84,8 @@ articleRoutes.get('/articles', async (c) => {
 articleRoutes.post('/articles', async (c) => {
   const userId = await bearerUserId(c);
   if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+  const limited = await rateLimit(c, `articles:${userId}`, 30, 60);
+  if (limited) return limited;
   const body = (await c.req.json().catch(() => null)) as ArticleBody | null;
   if (!body) return c.json({ error: 'invalid_body' }, 400);
   const input = validateArticleInput(body);

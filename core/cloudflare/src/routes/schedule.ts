@@ -4,6 +4,7 @@ import { ScheduledPostsRepo } from '../repos/scheduledPosts';
 import { ArticlesRepo } from '../repos/articles';
 import { AccountsRepo } from '../repos/accounts';
 import { bearerUserId } from '../lib/auth';
+import { rateLimit } from '../lib/rateLimit';
 import type { ScheduledPostStatus, Visibility } from '../repos/types';
 import type { Env } from '../env';
 
@@ -31,6 +32,8 @@ export const scheduleRoutes = new Hono<{ Bindings: Env }>();
 scheduleRoutes.post('/schedule', async (c) => {
   const userId = await bearerUserId(c);
   if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+  const limited = await rateLimit(c, `schedule:${userId}`, 30, 60);
+  if (limited) return limited;
   const body = (await c.req.json().catch(() => null)) as ScheduleBody | null;
   if (!body) return c.json({ error: 'invalid_body' }, 400);
 

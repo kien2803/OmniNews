@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../env';
 import { bearerUserId } from '../lib/auth';
+import { rateLimit } from '../lib/rateLimit';
 import { CommentsRepo } from '../repos/comments';
 import { AccountsRepo } from '../repos/accounts';
 import { decrypt } from '../lib/crypto';
@@ -24,6 +25,8 @@ commentsRoutes.get('/comments', async (c) => {
 commentsRoutes.post('/comments/:id/reply', async (c) => {
   const userId = await bearerUserId(c);
   if (!userId) return c.json({ error: 'Unauthorized' }, 401);
+  const limited = await rateLimit(c, `reply:${userId}`, 20, 60);
+  if (limited) return limited;
   const body = (await c.req.json().catch(() => null)) as { text?: string } | null;
   const text = body?.text?.trim();
   if (!text) return c.json({ error: 'text required' }, 400);
