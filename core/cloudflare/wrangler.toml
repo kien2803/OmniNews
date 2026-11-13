@@ -61,6 +61,9 @@ WEB_ORIGIN = "https://omninews.trunkynw2803.workers.dev"
 META_REDIRECT_URI = "https://omninews.trunkynw2803.workers.dev/auth/meta/callback"
 THREADS_REDIRECT_URI = "https://omninews.trunkynw2803.workers.dev/auth/threads/callback"
 REDDIT_REDIRECT_URI = "https://omninews.trunkynw2803.workers.dev/auth/reddit/callback"
+# www.reddit.com is ISP-blocked in VN; old.reddit.com serves the same
+# consent page and works everywhere — visitors just see the classic UI.
+REDDIT_AUTHORIZE_URL = "https://old.reddit.com/api/v1/authorize"
 X_REDIRECT_URI = "https://omninews.trunkynw2803.workers.dev/auth/x/callback"
 # OAuth cookies are marked Secure whenever WEB_ORIGIN is https (cookieOpts
 # derives it) — SECURE_COOKIES was dead config here and has been removed.

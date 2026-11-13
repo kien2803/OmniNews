@@ -24,6 +24,7 @@ export interface Env {
   REDDIT_CLIENT_ID?: string;
   REDDIT_CLIENT_SECRET?: string;
   REDDIT_REDIRECT_URI?: string;
+  REDDIT_AUTHORIZE_URL?: string;
   X_CLIENT_ID?: string;
   X_CLIENT_SECRET?: string;
   X_REDIRECT_URI?: string;

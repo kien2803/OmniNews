@@ -287,7 +287,11 @@ oauthRoutes.get('/auth/reddit/start', (c) => {
   }
   const state = crypto.randomUUID();
   setCookie(c, 'oauth_state', state, cookieOpts(c.env));
-  const url = new URL('https://www.reddit.com/api/v1/authorize');
+  // The user's browser must reach this host — www.reddit.com is
+  // ISP-blocked in some regions (e.g. VN), where old.reddit.com serves
+  // the same consent UI. Configurable per-environment via var.
+  const authorizeBase = c.env.REDDIT_AUTHORIZE_URL ?? 'https://www.reddit.com/api/v1/authorize';
+  const url = new URL(authorizeBase);
   url.searchParams.set('client_id', c.env.REDDIT_CLIENT_ID);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('state', state);
