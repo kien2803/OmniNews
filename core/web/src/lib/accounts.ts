@@ -11,6 +11,8 @@ export interface AccountInfo {
   platform: string;
   display_name: string;
   status: string;
+  /** Publish target — subreddit for reddit ('news' / 'r/news'). */
+  target?: string;
 }
 
 /**
@@ -30,6 +32,7 @@ export function useAccounts() {
         platform: a.platform,
         display_name: a.display_name,
         status: a.status,
+        target: a.metadata.target,
       }));
       return flat;
     },

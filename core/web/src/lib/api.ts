@@ -1,4 +1,5 @@
 import { classifyHttpError, reportError } from './telemetry.js';
+import type { PostVariant } from './variants.js';
 
 /** Supported platforms — mirrors the worker's repos/types.ts. The SPA no
  *  longer pulls this from @social-auto/shared (that package still reflects
@@ -33,6 +34,8 @@ export interface ScheduledPostRow {
   scheduled_at: number;
   caption: string;
   per_platform_caption: string | null;
+  /** JSON PostVariant (0011) — per-account content override. */
+  variant: string | null;
   visibility: Visibility;
   status: ScheduledPostStatus;
   external_post_id: string | null;
@@ -414,6 +417,8 @@ export interface CreateScheduleInput {
   article_id: string;
   caption?: string;
   per_platform_caption?: Record<string, string>;
+  /** Per-account content variants — mirrors worker lib/variants.ts. */
+  variants?: Record<string, PostVariant>;
   scheduled_at: number;
   visibility?: Visibility;
   draft?: boolean;

@@ -2,12 +2,14 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { api, PLATFORM_TEXT_LIMITS, type ArticleInput, type ArticleWire, type Platform } from '../lib/api.js';
+import { api, type ArticleInput, type ArticleWire, type Platform } from '../lib/api.js';
+import { validatePost, type PostVariant } from '../lib/variants.js';
 import { useAccounts, type AccountInfo } from '../lib/accounts.js';
 import { useToast } from '../components/ui/Toast.js';
 import { Button } from '../components/ui/Button.js';
-import { Field, Select, TextArea } from '../components/ui/Field.js';
+import { Field, TextArea } from '../components/ui/Field.js';
 import { Skeleton } from '../components/ui/Skeleton.js';
+import { VariantEditor } from '../components/VariantEditor.js';
 import { IconFacebook, IconThreads, IconReddit, IconX } from '../components/icons.js';
 import type { ComponentType, SVGProps } from 'react';
 
@@ -50,10 +52,8 @@ export function ComposePage() {
     try { return JSON.parse(localStorage.getItem('omninews.lastAccounts') ?? '[]'); } catch { return []; }
   });
   const [caption, setCaption] = useState('');
-  const [perPlatform, setPerPlatform] = useState(false);
-  const [perCaptions, setPerCaptions] = useState<Record<string, string>>({});
+  const [variants, setVariants] = useState<Record<string, PostVariant>>({});
   const [time, setTime] = useState(dayjs().add(1, 'hour').minute(0).format('YYYY-MM-DDTHH:mm'));
-  const [visibility, setVisibility] = useState<'public' | 'unlisted' | 'private'>('public');
   const [notes, setNotes] = useState('');
 
   const article: ArticleWire | undefined = articles.data?.articles.find((a) => a.id === articleId);
@@ -64,14 +64,6 @@ export function ComposePage() {
     return m;
   }, [accounts]);
   const selectedAccounts = accounts.filter((a) => accountIds.includes(a.id));
-  // Platforms the caption will exceed — publish truncates silently, so warn here.
-  const overLimitPlatforms = [
-    ...new Set(
-      selectedAccounts
-        .map((a) => a.platform)
-        .filter((p) => caption.length > (PLATFORM_TEXT_LIMITS[p as Platform] ?? Infinity)),
-    ),
-  ];
 
   const toggleAccount = (id: string) =>
     setAccountIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -79,10 +71,41 @@ export function ComposePage() {
   const creatingNew = newArticle || articleId === 'new';
   const newArticleValid = !!(nTitle.trim() || nBody.trim() || nLink.trim() || nImages.trim());
 
+  // The story shape variants resolve against — live draft for a new story,
+  // saved article otherwise.
+  const storyShape = useMemo(() => {
+    if (creatingNew) {
+      return {
+        title: nTitle, body: nBody, link_url: nLink,
+        images: nImages.split('\n').map((u) => u.trim()).filter(Boolean),
+      };
+    }
+    return article ?? { title: '', body: '', link_url: '', images: [] };
+  }, [creatingNew, nTitle, nBody, nLink, nImages, article]);
+
+  const patchVariant = (accountId: string, patch: PostVariant) =>
+    setVariants((prev) => ({ ...prev, [accountId]: { ...prev[accountId], ...patch } }));
+  const resetVariant = (accountId: string) =>
+    setVariants((prev) => {
+      const next = { ...prev };
+      delete next[accountId];
+      return next;
+    });
+  // Deselecting an account drops its variant — no stale overrides.
+  const prunedVariants = Object.fromEntries(
+    Object.entries(variants).filter(([id]) => accountIds.includes(id)),
+  );
+
   const errors: string[] = [];
   if (!articleId && !creatingNew) errors.push('Select or write a story');
   if (creatingNew && !newArticleValid) errors.push('Story needs a title, body, link or image');
   if (!accountIds.length) errors.push('Select at least one account');
+
+  // Per-account validation — blocks scheduling, mirrors worker 422 check.
+  const accountIssues = selectedAccounts.flatMap((a) =>
+    validatePost(a.platform as Platform, storyShape, prunedVariants[a.id] ?? null, caption).errors
+      .map((e) => ({ account: a.display_name, ...e })),
+  );
 
   const createArticle = useMutation({
     mutationFn: (input: ArticleInput) => api.createArticle(input),
@@ -105,9 +128,8 @@ export function ComposePage() {
         article_id: id,
         account_ids: accountIds,
         caption: caption.trim() || undefined,
-        per_platform_caption: perPlatform ? perCaptions : undefined,
+        variants: Object.keys(prunedVariants).length ? prunedVariants : undefined,
         scheduled_at: new Date(time).getTime(),
-        visibility,
         draft,
         notes: notes || undefined,
       });
@@ -122,12 +144,16 @@ export function ComposePage() {
   });
 
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const storyPicked = !!article || (creatingNew && newArticleValid);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-4xl space-y-4">
       <header>
         <p className="font-mono text-[11px] text-ink-subtle dark:text-stone-500">desk</p>
         <h1 className="font-display text-2xl font-semibold text-ink dark:text-stone-100">File a story</h1>
+        <p className="mt-0.5 text-[13px] text-ink-muted dark:text-stone-400">
+          One story — adapt a copy per desk, preview it, then file for distribution.
+        </p>
       </header>
 
       {/* 1 — article */}
@@ -241,52 +267,33 @@ export function ComposePage() {
         )}
       </Section>
 
-      {/* 3 — caption */}
-      <Section n={3} title="Deck override">
-        <Field
-          label={perPlatform ? 'Shared caption (fallback)' : 'Caption'}
-          hint={
-            <span>
-              {caption.length}/5000 — empty uses the article's title + body
-              {overLimitPlatforms.length > 0 && (
-                <span className="font-medium text-amber-600 dark:text-amber-400">
-                  {' '}· exceeds {overLimitPlatforms.join(', ')} limit — will be truncated
-                </span>
-              )}
-            </span>
-          }
-        >
-          <TextArea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={5000} placeholder="Override the post text (optional)…" />
-        </Field>
-        <button type="button" className="mt-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-100"
-          onClick={() => setPerPlatform((v) => !v)}>
-          {perPlatform ? '− Hide per-platform captions' : '+ Customize per platform'}
-        </button>
-        {perPlatform && selectedAccounts.length > 0 && (
-          <div className="mt-3 space-y-3 border-t border-stone-200 pt-3 dark:border-stone-800">
-            {selectedAccounts.map((a) => {
-              const limit = PLATFORM_TEXT_LIMITS[a.platform as Platform];
-              const len = (perCaptions[a.id] ?? '').length;
-              return (
-                <Field
+      {/* 3 — per-account variants */}
+      <Section n={3} title="Desk copies">
+        {!storyPicked ? (
+          <p className="text-sm text-ink-muted dark:text-stone-400">Pick a story first — desk copies adapt from it.</p>
+        ) : selectedAccounts.length === 0 ? (
+          <p className="text-sm text-ink-muted dark:text-stone-400">Select desks above — each gets its own editable copy.</p>
+        ) : (
+          <div className="space-y-3">
+            <Field
+              label="Shared deck (optional)"
+              hint="fallback copy for every desk — each copy below can override it"
+            >
+              <TextArea value={caption} onChange={(e) => setCaption(e.target.value)} rows={2} maxLength={5000} placeholder="Override the post text for all desks…" />
+            </Field>
+            <div className="space-y-3 border-t border-stone-200 pt-3 dark:border-stone-800">
+              {selectedAccounts.map((a) => (
+                <VariantEditor
                   key={a.id}
-                  label={`${a.display_name} (${a.platform})`}
-                  hint={
-                    <span className={len > limit ? 'font-medium text-amber-600 dark:text-amber-400' : undefined}>
-                      {len}/{limit}{len > limit ? ' — will be truncated' : ''}
-                    </span>
-                  }
-                >
-                  <TextArea
-                    value={perCaptions[a.id] ?? ''}
-                    onChange={(e) => setPerCaptions((p) => ({ ...p, [a.id]: e.target.value }))}
-                    rows={2}
-                    maxLength={5000}
-                    placeholder={caption || 'Platform-specific caption…'}
-                  />
-                </Field>
-              );
-            })}
+                  account={a}
+                  article={storyShape}
+                  caption={caption}
+                  variant={prunedVariants[a.id]}
+                  onChange={patchVariant}
+                  onReset={resetVariant}
+                />
+              ))}
+            </div>
           </div>
         )}
       </Section>
@@ -297,36 +304,29 @@ export function ComposePage() {
           <Field label={`Publish at (${tz})`} required>
             <input type="datetime-local" value={time} onChange={(e) => setTime(e.target.value)} className="input" />
           </Field>
-          <Field label="Visibility" hint="Mapped per platform where supported">
-            <Select value={visibility} onChange={(e) => setVisibility(e.target.value as typeof visibility)}>
-              <option value="public">Public</option>
-              <option value="unlisted">Unlisted</option>
-              <option value="private">Private</option>
-            </Select>
+          <Field label="Internal notes (optional)">
+            <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} placeholder="e.g. product launch v2" className="input" />
           </Field>
         </div>
-        <Field label="Internal notes (optional)">
-          <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500} placeholder="e.g. product launch v2" className="input" />
-        </Field>
       </Section>
 
-      {/* 5 — review */}
+      {/* 5 — proof */}
       <Section n={5} title="Proof">
         <dl className="space-y-1.5 text-sm">
-          <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Article</dt><dd className="truncate font-medium text-ink dark:text-stone-100">{creatingNew ? (nTitle || 'New article') : (article?.title ?? '—')}</dd></div>
-          <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Accounts</dt><dd className="text-ink dark:text-stone-100">{selectedAccounts.map((a) => a.display_name).join(', ') || '—'}</dd></div>
+          <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Story</dt><dd className="truncate font-medium text-ink dark:text-stone-100">{creatingNew ? (nTitle || 'New article') : (article?.title ?? '—')}</dd></div>
+          <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Desks</dt><dd className="text-ink dark:text-stone-100">{selectedAccounts.map((a) => a.display_name).join(', ') || '—'}</dd></div>
+          <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Adapted copies</dt><dd className="text-ink dark:text-stone-100">{Object.keys(prunedVariants).length} of {selectedAccounts.length}</dd></div>
           <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Time</dt><dd className="font-mono text-ink dark:text-stone-100">{dayjs(time).format('MMM D, HH:mm')} ({tz})</dd></div>
-          <div className="flex justify-between"><dt className="text-ink-subtle dark:text-stone-500">Visibility</dt><dd className="capitalize text-ink dark:text-stone-100">{visibility}</dd></div>
-          <div><dt className="text-ink-subtle dark:text-stone-500">Caption</dt><dd className="mt-0.5 whitespace-pre-wrap rounded-sm bg-surface-muted p-2 text-[13px] text-ink dark:bg-stone-800/50 dark:text-stone-200">{caption || '(article title + body)'}</dd></div>
         </dl>
-        {errors.length > 0 && (
+        {(errors.length > 0 || accountIssues.length > 0) && (
           <ul className="mt-3 space-y-0.5 text-xs text-red-600 dark:text-red-400" role="alert">
             {errors.map((e) => <li key={e}>• {e}</li>)}
+            {accountIssues.map((e, i) => <li key={`${e.account}-${e.code}-${i}`}>• {e.account}: {e.message}</li>)}
           </ul>
         )}
         <div className="mt-4 flex flex-wrap gap-2 border-t border-stone-200 pt-4 dark:border-stone-800">
-          <Button loading={submit.isPending} disabled={errors.length > 0} onClick={() => submit.mutate(false)}>
-            Schedule post
+          <Button loading={submit.isPending} disabled={errors.length > 0 || accountIssues.length > 0} onClick={() => submit.mutate(false)}>
+            File for distribution
           </Button>
           <Button variant="secondary" loading={submit.isPending} disabled={errors.length > 0} onClick={() => submit.mutate(true)}>
             Save as draft
