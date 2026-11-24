@@ -5,6 +5,7 @@ import { ArticlesRepo } from '../repos/articles';
 import { AccountsRepo } from '../repos/accounts';
 import { bearerUserId } from '../lib/auth';
 import { rateLimit } from '../lib/rateLimit';
+import { validatePost, type PostVariant } from '../lib/variants';
 import type { ScheduledPostStatus, Visibility } from '../repos/types';
 import type { Env } from '../env';
 
@@ -18,6 +19,8 @@ interface ScheduleBody {
   article_id: string;
   caption?: string;
   per_platform_caption?: Record<string, string>;
+  /** Per-account content variants — supersedes per_platform_caption. */
+  variants?: Record<string, PostVariant>;
   scheduled_at: number;
   visibility?: Visibility;
   draft?: boolean;
@@ -71,6 +74,8 @@ scheduleRoutes.post('/schedule', async (c) => {
 
   const accounts = new AccountsRepo(c.env.DB);
   const perPlatform = body.per_platform_caption ?? {};
+  const variants = body.variants ?? {};
+  const accountRows = [];
   // Validate every account before inserting anything — otherwise a late
   // failure leaves partial rows and a client retry silently duplicates.
   for (const accId of accountIds) {
@@ -81,6 +86,17 @@ scheduleRoutes.post('/schedule', async (c) => {
     if ((perPlatform[accId] ?? caption).length > CAPTION_MAX) {
       return c.json({ error: `caption_too_long: ${accId}` }, 400);
     }
+    accountRows.push(acc);
+  }
+  // Authoritative platform validation — drafts may be incomplete, pending
+  // posts must pass. Returns actionable per-account issues, not a silent
+  // truncation at publish time.
+  if (!draft) {
+    const issues = accountRows.flatMap((acc) =>
+      validatePost(acc.platform, article, variants[acc.id] ?? null, perPlatform[acc.id] ?? caption).errors
+        .map((e) => ({ account_id: acc.id, platform: acc.platform, ...e })),
+    );
+    if (issues.length) return c.json({ error: 'validation_failed', issues }, 422);
   }
 
   const posts = new ScheduledPostsRepo(c.env.DB);
@@ -96,6 +112,7 @@ scheduleRoutes.post('/schedule', async (c) => {
         notes: body.notes ?? null,
         caption: perPlatform[accId] ?? caption,
         per_platform_caption: perPlatform[accId] ?? null,
+        variant: variants[accId] ? JSON.stringify(variants[accId]) : null,
         visibility: body.visibility ?? 'private',
       }),
     );

@@ -9,6 +9,7 @@ export interface NewScheduledPost {
   scheduled_at: number;
   caption: string;
   per_platform_caption?: string | null;
+  variant?: string | null;
   visibility?: Visibility;
   status?: 'pending' | 'draft';
   notes?: string | null;
@@ -25,11 +26,12 @@ export class ScheduledPostsRepo {
     await this.db
       .prepare(
         `INSERT INTO scheduled_posts
-         (id, user_id, article_id, account_id, scheduled_at, caption, per_platform_caption, visibility, status, external_post_id, last_error, retry_count, next_retry_at, is_dead, notes, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL, 0, ?, ?, ?)`,
+         (id, user_id, article_id, account_id, scheduled_at, caption, per_platform_caption, variant, visibility, status, external_post_id, last_error, retry_count, next_retry_at, is_dead, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, NULL, 0, ?, ?, ?)`,
       )
       .bind(id, input.user_id, input.article_id, input.account_id, input.scheduled_at,
-        input.caption, input.per_platform_caption ?? null, input.visibility ?? 'private',
+        input.caption, input.per_platform_caption ?? null, input.variant ?? null,
+        input.visibility ?? 'private',
         input.status ?? 'pending', input.notes ?? null, now, now)
       .run();
     return (await this.findById(id))!;

@@ -54,6 +54,8 @@ export interface ScheduledPostRow {
   scheduled_at: number;
   caption: string;
   per_platform_caption: string | null;
+  /** JSON PostVariant — per-account content override (0011). */
+  variant: string | null;
   visibility: Visibility;
   status: ScheduledPostStatus;
   external_post_id: string | null;

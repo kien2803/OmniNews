@@ -2,36 +2,46 @@ import type { Env } from '../env';
 import type { ClaimedPost, Platform } from '../repos/types';
 import { publishFacebookPost } from './meta';
 import { fitText, fitTitle } from './platforms';
+import {
+  resolvedImages, resolvedLink, resolvedText, resolvedTitle,
+  type PostVariant,
+} from './variants';
 
 export interface PublishResult {
   external_id: string;
   url?: string;
 }
 
-/** Full post text: an explicit per-account caption wins; otherwise the
- *  article's title + body (and its link where the platform can't attach
- *  one natively). */
+function postVariant(post: ClaimedPost): PostVariant | null {
+  if (!post.variant) return null;
+  try {
+    const v = JSON.parse(post.variant) as PostVariant;
+    return v && typeof v === 'object' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Full post text: variant.text → per-account caption → article title+body. */
 function postText(post: ClaimedPost): string {
-  if (post.caption?.trim()) return post.caption.trim();
-  const parts = [post.article.title, post.article.body].filter((s) => s?.trim());
-  return parts.join('\n\n').trim();
+  return resolvedText(post.account.platform, post.article, postVariant(post), post.caption);
 }
 
 function postImages(post: ClaimedPost): string[] {
-  try {
-    const arr = JSON.parse(post.article.images || '[]') as unknown;
-    return Array.isArray(arr) ? arr.filter((u): u is string => typeof u === 'string' && u.startsWith('http')) : [];
-  } catch {
-    return [];
-  }
+  return resolvedImages(post.article, postVariant(post));
+}
+
+function postLink(post: ClaimedPost): string {
+  return resolvedLink(post.article, postVariant(post));
 }
 
 // ── Threads ────────────────────────────────────────────────────────────
 
 async function publishThreads(post: ClaimedPost, token: string): Promise<PublishResult> {
   const images = postImages(post);
+  const link = postLink(post);
   let text = postText(post);
-  if (post.article.link_url) text = `${text}\n${post.article.link_url}`.trim();
+  if (link) text = `${text}\n${link}`.trim();
   text = fitText('threads', text);
   if (!text) throw new Error('invalid_text: empty threads post');
 
@@ -71,18 +81,21 @@ function redditTarget(post: ClaimedPost): string {
 }
 
 async function publishReddit(post: ClaimedPost, token: string): Promise<PublishResult> {
+  const variant = postVariant(post);
   const text = fitText('reddit', postText(post));
-  // Title comes from the article (or the first line of the text); Reddit
-  // requires one and caps it at 300 chars.
-  const title = fitTitle('reddit', post.article.title || text.split('\n')[0] || 'Post');
+  const link = postLink(post);
+  const kind = variant?.reddit_kind ?? (link ? 'link' : 'self');
+  // Title comes from the variant, then the article (or first text line);
+  // Reddit requires one and caps it at 300 chars.
+  const title = fitTitle('reddit', resolvedTitle(post.article, variant, text) || 'Post');
   const form = new URLSearchParams({
     api_type: 'json',
     sr: redditTarget(post),
     title,
-    kind: post.article.link_url ? 'link' : 'self',
+    kind,
   });
-  if (post.article.link_url) {
-    form.set('url', post.article.link_url);
+  if (kind === 'link') {
+    form.set('url', link);
   } else {
     form.set('text', text);
   }
@@ -108,9 +121,10 @@ async function publishReddit(post: ClaimedPost, token: string): Promise<PublishR
 // ── X (Twitter) ────────────────────────────────────────────────────────
 
 async function publishX(post: ClaimedPost, token: string): Promise<PublishResult> {
+  const link = postLink(post);
   let text = postText(post);
-  if (post.article.link_url && !text.includes(post.article.link_url)) {
-    text = `${text}\n${post.article.link_url}`.trim();
+  if (link && !text.includes(link)) {
+    text = `${text}\n${link}`.trim();
   }
   text = fitText('x', text);
   if (!text) throw new Error('invalid_text: empty tweet');
@@ -142,7 +156,7 @@ export async function publishPost(env: Env, post: ClaimedPost, accessToken: stri
     case 'facebook': {
       const r = await publishFacebookPost(env, post.account.external_id, accessToken, {
         message: fitText('facebook', postText(post)),
-        link: post.article.link_url || undefined,
+        link: postLink(post) || undefined,
         images: postImages(post),
       });
       return { external_id: r.id };
