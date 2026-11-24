@@ -77,7 +77,11 @@ export function PostDetailDrawer({
       )}
       {editable && !editing && (
             <>
-              <Button variant="danger" loading={del.isPending} onClick={() => del.mutate()}>
+              <Button
+                variant="danger"
+                loading={del.isPending}
+                onClick={() => { if (window.confirm('Cancel this scheduled post? It will not be published.')) del.mutate(); }}
+              >
                 Cancel post
               </Button>
               <Button variant="secondary" onClick={() => setEditing(true)}>

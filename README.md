@@ -32,6 +32,7 @@ Trigger cron local: `GET /cdn-cgi/handler/scheduled`.
 | Database | Cloudflare D1 (SQLite) |
 | Queue | Cloudflare Queues + DLQ + cron `*/1 * * * *` |
 | Content | Articles (title + body + link + image URLs) — không cần binary storage |
+| Distribution | Per-account content variants (`scheduled_posts.variant` JSON) + shared platform validation (worker `lib/variants.ts` ≡ web `lib/variants.ts`) |
 | Auth | JWT + bcrypt · token_version revocation · D1 rate limiting |
 
 ## Cấu trúc
