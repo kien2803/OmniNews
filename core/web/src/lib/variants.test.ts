@@ -20,7 +20,7 @@ describe('xWeightedLength', () => {
     const t = 'a'.repeat(270);
     expect(textLength('x', t)).toBe(270);
     expect(textLength('x', `${t} https://x.co`)).toBe(294);
-    expect(textLength('threads', 'a🎉b')).toBe(4); // codepoints, not weighted
+    expect(textLength('threads', 'a🎉b')).toBe(3); // codepoints, not weighted
   });
 });
 
@@ -39,11 +39,11 @@ describe('resolvedText / variants', () => {
 describe('validatePost', () => {
   it('x over-limit via weighted counting → text_too_long', () => {
     const r = validatePost('x', { ...article, body: `${'a'.repeat(270)} https://x.co` }, null, null);
-    expect(r.errors[0].code).toBe('text_too_long');
+    expect(r.errors[0]?.code).toBe('text_too_long');
   });
   it('threads 500 cap', () => {
     const r = validatePost('threads', { ...article, body: 'x'.repeat(501) }, null, null);
-    expect(r.errors[0].code).toBe('text_too_long');
+    expect(r.errors[0]?.code).toBe('text_too_long');
   });
   it('reddit link kind without url → link_required', () => {
     const r = validatePost('reddit', article, { reddit_kind: 'link', link_url: '' }, null);

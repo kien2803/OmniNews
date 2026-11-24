@@ -16,12 +16,12 @@ Trạng thái tính năng theo stack deploy hiện tại (Cloudflare Workers + D
 | Route | Tính năng |
 |---|---|
 | `/dashboard` | KPI strip (scheduled/published/failed/channels) · channel lineup CH-01–04 · quota tiles · quick actions |
-| `/library` | Content Library: grid/list toggle · search · thumbnail · duration/size/date · upload · preview modal · **Create Post** → `/posts/new?video=id` · delete |
-| `/posts/new` | **Unified composer** 5 section 1 trang: Media (picker + inline upload + replace) → Accounts (platform groups, select-all-active, nhớ selection) → Caption (shared + per-platform toggle + counter) → Options (datetime + timezone + visibility + notes) → Review (validation + confirm) |
+| `/library` | Articles library: danh sách bài viết (title/body/link/images) · search · **Compose** → `/posts/new?article=id` · edit · delete |
+| `/posts/new` | **Editorial composer**: Story (pick/write article) → Desks (platform account picker) → **Desk copies** (per-account variant editor: copy, reddit title/kind, link, images + live platform preview + per-account validation) → Deadline (datetime + notes) → Proof (validation gate + file) |
 | `/posts/calendar` | Week (cột ngày) + Month view · filter platform/account/status · quick schedule `+` · detail drawer (edit/cancel/reschedule) · drag-drop pending posts |
 | `/posts/pipeline` | Kanban: drafts → scheduled → publishing → published → failed · search `q` · card actions (retry/duplicate) · bulk select + bulk actions · detail drawer |
 | `/posts/history` | Danh sách published/failed · filter + search · link external_post_id |
-| `/accounts` | Danh sách + connect OAuth (YouTube/TikTok/Meta routes) · status badge · card/table |
+| `/accounts` | Danh sách + connect OAuth (Facebook/Threads/Reddit/X) · status badge · card/table · publish target (subreddit) |
 | `/analytics` | Per-account rollups · date range: today/month/year/custom · drill-down channel |
 | `/settings` | Profile · change password (revoke sessions khác) · danger zone delete account |
 
@@ -61,6 +61,6 @@ Trạng thái tính năng theo stack deploy hiện tại (Cloudflare Workers + D
 
 ## Chưa hoàn thiện (blocked)
 
-- `POST /videos` upload + publisher dispatch + Facebook streaming + Instagram public URL — chờ **R2 billing**
-- TikTok/Meta OAuth verify bằng account thật — chờ credentials
+- OAuth credentials thật cho 4 platforms — chờ client ids/secrets (X app đang setup)
+- Reddit API access bị gate bởi Responsible Builder Policy registration
 - Roadmap chưa làm: post templates, media folders, activity log, notifications, multi-tenant/billing

@@ -6,7 +6,7 @@ import type { AccountInfo } from '../lib/accounts.js';
 import { useToast } from './ui/Toast.js';
 import { Button } from './ui/Button.js';
 import { Badge } from './ui/Badge.js';
-import { Field, Select, TextArea } from './ui/Field.js';
+import { Field, TextArea } from './ui/Field.js';
 import type { ScheduledPostRow } from '../lib/api.js';
 
 const STATUS_TONES: Record<string, 'success' | 'warn' | 'danger' | 'neutral'> = {
@@ -35,7 +35,6 @@ export function PostDetailDrawer({
   const [editing, setEditing] = useState(false);
   const [caption, setCaption] = useState(post.caption);
   const [time, setTime] = useState(dayjs(post.scheduled_at).format('YYYY-MM-DDTHH:mm'));
-  const [visibility, setVisibility] = useState(post.visibility);
 
   const update = useMutation({
     mutationFn: (patch: UpdateScheduleInput) => api.updateSchedule(post.id, patch),
@@ -46,6 +45,16 @@ export function PostDetailDrawer({
     },
     onError: (err) =>
       toast.push({ tone: 'error', title: 'Update failed', description: err instanceof Error ? err.message : 'unknown_error' }),
+  });
+  const retry = useMutation({
+    mutationFn: () => api.retrySchedule(post.id),
+    onSuccess: () => {
+      toast.push({ tone: 'success', title: 'Requeued for publishing' });
+      onChanged();
+      onClose();
+    },
+    onError: (err) =>
+      toast.push({ tone: 'error', title: 'Retry failed', description: err instanceof Error ? err.message : 'unknown_error' }),
   });
   const del = useMutation({
     mutationFn: () => api.deleteSchedule(post.id),
@@ -76,6 +85,11 @@ export function PostDetailDrawer({
               </Button>
             </>
           )}
+          {(post.status === 'failed' || post.status === 'dead') && !editing && (
+            <Button loading={retry.isPending} onClick={() => retry.mutate()}>
+              Retry publish
+            </Button>
+          )}
           {editing && (
             <>
               <Button variant="ghost" onClick={() => setEditing(false)}>Back</Button>
@@ -85,7 +99,6 @@ export function PostDetailDrawer({
                   update.mutate({
                     caption,
                     scheduled_at: new Date(time).getTime(),
-                    visibility,
                   })
                 }
               >
@@ -114,24 +127,14 @@ export function PostDetailDrawer({
           <Field label="Caption">
             <TextArea value={caption} onChange={(e) => setCaption(e.target.value)} rows={4} maxLength={5000} />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Publish at">
-              <input type="datetime-local" className="input" value={time} onChange={(e) => setTime(e.target.value)} />
-            </Field>
-            <Field label="Visibility">
-              <Select value={visibility} onChange={(e) => setVisibility(e.target.value as typeof visibility)}>
-                <option value="private">private</option>
-                <option value="unlisted">unlisted</option>
-                <option value="public">public</option>
-              </Select>
-            </Field>
-          </div>
+          <Field label="Publish at">
+            <input type="datetime-local" className="input" value={time} onChange={(e) => setTime(e.target.value)} />
+          </Field>
         </div>
       ) : (
         <div className="space-y-3 text-sm">
           <div className="flex items-center gap-2">
             <Badge tone={STATUS_TONES[post.status] ?? 'neutral'}>{post.status}</Badge>
-            <span className="text-xs text-ink-muted dark:text-stone-400">{post.visibility}</span>
           </div>
           <dl className="space-y-1.5">
             <div className="flex gap-2">
@@ -163,6 +166,18 @@ export function PostDetailDrawer({
               <div className="flex gap-2">
                 <dt className="w-20 shrink-0 text-ink-subtle dark:text-stone-500">Error</dt>
                 <dd className="text-red-600 dark:text-red-400">{post.last_error}</dd>
+              </div>
+            )}
+            {post.retry_count > 0 && (
+              <div className="flex gap-2">
+                <dt className="w-20 shrink-0 text-ink-subtle dark:text-stone-500">Attempts</dt>
+                <dd className="font-mono text-xs">{post.retry_count}</dd>
+              </div>
+            )}
+            {post.variant && (
+              <div className="flex gap-2">
+                <dt className="w-20 shrink-0 text-ink-subtle dark:text-stone-500">Copy</dt>
+                <dd className="text-xs text-ink-muted dark:text-stone-400">adapted for this desk</dd>
               </div>
             )}
           </dl>

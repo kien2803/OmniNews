@@ -192,19 +192,6 @@ function formatBigNumber(n: number | null): string {
   return String(n);
 }
 
-function formatAvgWatch(seconds: number | null): string {
-  if (seconds == null) return '—';
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return s === 0 ? `${m}m` : `${m}m ${s}s`;
-}
-
-function formatDropOff(pct: number | null): string {
-  if (pct == null) return '—';
-  return `${Math.round(pct * 100)}%`;
-}
-
 function FullSnapshot({ account }: { account: AccountRow }) {
   const { channel } = account;
   const synced = channel.snapshot_at != null;
@@ -214,20 +201,16 @@ function FullSnapshot({ account }: { account: AccountRow }) {
         title="Channel snapshot"
         description={
           synced
-            ? `Synced ${dayjs(channel.snapshot_at).format('MMM D, HH:mm')}`
-            : 'Never synced — click Sync to refresh from YouTube.'
+            ? `Synced ${dayjs(channel.snapshot_at).format('MMM D, HH:mm')} — live platform data`
+            : 'Never synced — click Sync to fetch real metrics from the platform.'
         }
       />
       <CardBody className="space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          <SnapshotTile label="Subs" value={formatBigNumber(channel.subscribers)} />
+        <div className="grid grid-cols-4 gap-2">
+          <SnapshotTile label="Followers" value={formatBigNumber(channel.subscribers)} />
           <SnapshotTile label="Posts" value={formatBigNumber(channel.video_count)} />
-          <SnapshotTile label="Views" value={formatBigNumber(channel.views)} />
-        </div>
-        <div className="grid grid-cols-3 gap-2">
+          <SnapshotTile label="Impressions" value={formatBigNumber(channel.views)} />
           <SnapshotTile label="Likes" value={formatBigNumber(channel.like_count)} />
-          <SnapshotTile label="Avg view" value={formatAvgWatch(channel.avg_watch_seconds)} />
-          <SnapshotTile label="Drop-off" value={formatDropOff(channel.drop_off_pct)} />
         </div>
       </CardBody>
     </Card>
@@ -270,7 +253,7 @@ function PostListCard({ accountId }: { accountId: string }) {
           <thead className="bg-stone-50 text-left text-xs uppercase tracking-wide text-ink-muted dark:bg-[#211d18] dark:text-stone-400">
             <tr>
               <th className="px-4 py-2 font-medium">Title</th>
-              <th className="px-4 py-2 font-medium text-right">Views</th>
+              <th className="px-4 py-2 font-medium text-right">Impressions</th>
               <th className="px-4 py-2 font-medium text-right">Likes</th>
               <th className="px-4 py-2 font-medium text-right">Comments</th>
                             <th className="px-4 py-2 font-medium">Published</th>
@@ -348,7 +331,8 @@ function SingleAccountAnalytics({
     <div className="space-y-4">
       <Card>
         <CardHeader
-          title="Snapshot"
+          title="Publishing ops"
+          description="Pipeline counts from OmniNews — not platform engagement."
           action={
             <button
               type="button"

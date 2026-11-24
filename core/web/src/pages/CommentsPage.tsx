@@ -152,7 +152,7 @@ export function CommentsPage(): JSX.Element {
         <h1 className="text-2xl font-semibold">Comments</h1>
         <p className="mt-1 text-sm text-ink-muted dark:text-stone-400">
           Comments on your published posts. Reply manually or let auto-reply keep engagement.
-          TikTok does not expose a comments API, so TikTok posts are not included.
+          Only Facebook and Threads expose a comments API — Reddit and X comments are not included.
         </p>
       </header>
 
