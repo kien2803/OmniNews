@@ -7,6 +7,7 @@ import { scheduleRoutes } from './routes/schedule';
 import { articleRoutes } from './routes/articles';
 import { quotaRoutes } from './routes/quota';
 import { commentsRoutes } from './routes/comments';
+import { generateRoutes } from './routes/generate';
 import { pollComments } from './lib/commentPoll';
 import { publishPost, MOCKABLE } from './lib/publish';
 import { usableAccessToken } from './lib/tokens';
@@ -61,6 +62,7 @@ app.route('/api', scheduleRoutes);
 app.route('/api', articleRoutes);
 app.route('/api', quotaRoutes);
 app.route('/api', commentsRoutes);
+app.route('/api', generateRoutes);
 // /api/health aliases the root /health — the SPA probes the API path.
 app.get('/api/health', healthCheck);
 

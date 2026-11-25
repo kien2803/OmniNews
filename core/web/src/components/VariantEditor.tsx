@@ -20,8 +20,15 @@ interface VariantEditorProps {
   /** Shared caption fallback from section above. */
   caption: string;
   variant: PostVariant | undefined;
+  /** Last generated draft for this account — enables "restore generated". */
+  generated: PostVariant | undefined;
+  /** 'ai' | 'offline' source of the generated draft, if any. */
+  generatedSource?: 'ai' | 'offline';
+  generating?: boolean;
   onChange: (accountId: string, patch: PostVariant) => void;
   onReset: (accountId: string) => void;
+  onGenerate: (accountId: string) => void;
+  onRestoreGenerated: (accountId: string) => void;
 }
 
 function IssueList({ issues, tone }: { issues: Array<{ code: string; message: string }>; tone: 'error' | 'warn' }) {
@@ -36,7 +43,7 @@ function IssueList({ issues, tone }: { issues: Array<{ code: string; message: st
 
 /** Per-account adaptation card — edits a sparse PostVariant (unset fields
  *  inherit story/caption resolution) and previews the resolved result. */
-export function VariantEditor({ account, article, caption, variant, onChange, onReset }: VariantEditorProps) {
+export function VariantEditor({ account, article, caption, variant, generated, generatedSource, generating, onChange, onReset, onGenerate, onRestoreGenerated }: VariantEditorProps) {
   const platform = account.platform as Platform;
   const lim = PLATFORM_LIMITS[platform] ?? PLATFORM_LIMITS.facebook;
   const Icon = ICON[platform] ?? IconFacebook;
@@ -54,17 +61,39 @@ export function VariantEditor({ account, article, caption, variant, onChange, on
 
   return (
     <div className="border border-stone-200 bg-surface dark:border-stone-700 dark:bg-[#211d18]">
-      <header className="flex items-center gap-2 border-b border-stone-200 px-3 py-2 dark:border-stone-700">
+      <header className="flex flex-wrap items-center gap-2 border-b border-stone-200 px-3 py-2 dark:border-stone-700">
         <Icon className="h-4 w-4 text-ink-muted dark:text-stone-400" />
         <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink dark:text-stone-100">
           {account.display_name}
           <span className="ml-1.5 font-mono text-[10px] font-normal uppercase text-ink-subtle dark:text-stone-500">{PLATFORM_LABELS[platform]}</span>
         </p>
-        {edited && (
-          <Button size="sm" variant="ghost" onClick={() => onReset(account.id)} title="Clear overrides — re-inherit from the story">
-            Reset to story
-          </Button>
+        {generatedSource && (
+          <span className={`font-mono text-[9px] uppercase ${generatedSource === 'ai' ? 'text-brand-600 dark:text-brand-100' : 'text-ink-subtle dark:text-stone-500'}`}
+            title={generatedSource === 'offline' ? 'AI provider not configured — deterministic draft' : 'AI-generated draft'}>
+            {generatedSource === 'ai' ? 'ai draft' : 'offline draft'}
+          </span>
         )}
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="ghost" loading={generating} onClick={() => onGenerate(account.id)}
+            title="Generate an adapted draft for this desk">
+            {generated ? 'Regenerate' : 'Generate'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => void navigator.clipboard.writeText(text).catch(() => undefined)}
+            title="Copy resolved copy to clipboard">
+            Copy
+          </Button>
+          {generated && (
+            <Button size="sm" variant="ghost" onClick={() => onRestoreGenerated(account.id)}
+              title="Restore the generated draft (discards manual edits)">
+              Restore
+            </Button>
+          )}
+          {edited && (
+            <Button size="sm" variant="ghost" onClick={() => onReset(account.id)} title="Clear overrides — re-inherit from the story">
+              Reset to story
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="grid gap-4 p-3 lg:grid-cols-2">

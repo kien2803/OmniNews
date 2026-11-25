@@ -139,6 +139,9 @@ export function PostDetailDrawer({
         <div className="space-y-3 text-sm">
           <div className="flex items-center gap-2">
             <Badge tone={STATUS_TONES[post.status] ?? 'neutral'}>{post.status}</Badge>
+            {post.external_post_id?.startsWith('mock_') && (
+              <Badge tone="neutral">mock publish — not a real platform post</Badge>
+            )}
           </div>
           <dl className="space-y-1.5">
             <div className="flex gap-2">

@@ -163,7 +163,12 @@ export function HistoryPage() {
                         )}
                       </td>
                       <td className="px-4 py-2 text-xs tabular-nums text-ink-subtle dark:text-stone-500">
-                        {p.external_post_id ?? '—'}
+                        {p.external_post_id?.startsWith('mock_') ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Badge tone="neutral">mock</Badge>
+                            <span className="max-w-[9rem] truncate">{p.external_post_id}</span>
+                          </span>
+                        ) : (p.external_post_id ?? '—')}
                       </td>
                     </tr>
                   );

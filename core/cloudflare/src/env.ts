@@ -28,6 +28,14 @@ export interface Env {
   X_CLIENT_ID?: string;
   X_CLIENT_SECRET?: string;
   X_REDIRECT_URI?: string;
+
+  // AI repurposing (wrangler secret put AI_API_KEY; vars in toml)
+  /** 'anthropic' | 'openai' — empty/unset → deterministic offline drafter. */
+  AI_PROVIDER?: string;
+  AI_API_KEY?: string;
+  AI_MODEL?: string;
+  /** OpenAI-compatible base URL (default api.openai.com). */
+  AI_BASE_URL?: string;
 }
 
 /** Message sent through the publish queue (replaces the poll-claim loop). */

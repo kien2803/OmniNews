@@ -17,7 +17,7 @@ Trạng thái tính năng theo stack deploy hiện tại (Cloudflare Workers + D
 |---|---|
 | `/dashboard` | KPI strip (scheduled/published/failed/channels) · channel lineup CH-01–04 · quota tiles · quick actions |
 | `/library` | Articles library: danh sách bài viết (title/body/link/images) · search · **Compose** → `/posts/new?article=id` · edit · delete |
-| `/posts/new` | **Editorial composer**: Story (pick/write article) → Desks (platform account picker) → **Desk copies** (per-account variant editor: copy, reddit title/kind, link, images + live platform preview + per-account validation) → Deadline (datetime + notes) → Proof (validation gate + file) |
+| `/posts/new` | **Editorial composer**: Story (pick/write article) → Desks (platform account picker) → **Desk copies** (per-account variant editor + **AI Repurposing Studio**: per-desk Generate/Regenerate/Copy/Restore, tone + language, `ai draft`/`offline draft` badge, live platform preview, per-account validation) → Deadline (datetime + notes) → Proof (validation gate + file) |
 | `/posts/calendar` | Week (cột ngày) + Month view · filter platform/account/status · quick schedule `+` · detail drawer (edit/cancel/reschedule) · drag-drop pending posts |
 | `/posts/pipeline` | Kanban: drafts → scheduled → publishing → published → failed · search `q` · card actions (retry/duplicate) · bulk select + bulk actions · detail drawer |
 | `/posts/history` | Danh sách published/failed · filter + search · link external_post_id |
@@ -42,7 +42,14 @@ Trạng thái tính năng theo stack deploy hiện tại (Cloudflare Workers + D
 - `POST /schedule/:id/retry` — failed/dead → pending
 - Error classification `lib/publishErrors` (permanent vs retryable) sẵn cho publisher port
 - Worker heartbeat `meta.last_cron_at` — `/health` báo `worker_lag_sec`, stale >5min → degraded 503
-- Consumer fail-fast `publisher_not_deployed` cho tới khi R2 mở
+- `MOCK_PUBLISHERS=true` → publishers trả `mock_*` external ids (UI badge `mock` ở History/drawer — không giả làm post thật)
+
+## AI Repurposing Studio
+
+- `POST /api/generate` — per-account variant drafting (rate-limited 20/min, auth + ownership checks)
+- Provider abstraction `lib/ai.ts`: `AI_PROVIDER=anthropic|openai` + `AI_API_KEY` secret — server-side only
+- Không có AI creds → deterministic offline drafter (`source:'offline'`, UI badge `offline draft`) — reshape story, không bịa nội dung
+- Response kèm `validation` (shared `validatePost`) — draft lỗi vẫn hiện issues trước khi file
 
 ## Data features
 
@@ -51,13 +58,13 @@ Trạng thái tính năng theo stack deploy hiện tại (Cloudflare Workers + D
 - **Quota**: global platform cap + `quota_usage` per-user (`mine` trong `/api/quota`)
 - Search: `GET /schedule?q=` (caption LIKE)
 - Analytics range: `?from=&to=` trên scheduled_at
-- Migrations: `0001_init` → `0005_drafts_notes` (meta, quota_usage, auth_hardening, drafts/notes)
+- Migrations: `0001` → `0011` (meta, quota, auth_hardening, drafts/notes, comments, articles pivot 0008, account target 0009, post variants 0011)
 
 ## Ops
 
 - CI: typecheck + lint + test + `docker build` (`.github/workflows/ci.yml`)
 - `scripts/backup-db.sh` — D1 export timestamped
-- Tests: web 24 · worker 67 · api 156
+- Tests: web 32 · worker 44
 
 ## Chưa hoàn thiện (blocked)
 

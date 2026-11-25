@@ -69,6 +69,7 @@ Legacy redirects: /upload /schedule /calendar /pipeline /history → /posts/*
 `GET/POST /schedule` · `GET/PATCH/DELETE /schedule/:id` · `POST /schedule/:id/retry`
 `GET /schedule?status&account_id&from&to&q` · `GET/POST /articles` · `GET/PATCH/DELETE /articles/:id` · `GET /history`
 `GET /dashboard/counts` · `GET /analytics?account_id&from&to` · `GET /quota` (global + `mine`)
+`POST /generate` — AI/offline per-account variant drafting (rate-limited 20/min)
 `GET /health` (DB ping + worker heartbeat)
 
 ## Blockers (cần thao tác developer console)

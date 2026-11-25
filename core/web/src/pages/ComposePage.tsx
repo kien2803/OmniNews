@@ -53,6 +53,11 @@ export function ComposePage() {
   });
   const [caption, setCaption] = useState('');
   const [variants, setVariants] = useState<Record<string, PostVariant>>({});
+  // AI-drafted snapshots — enables per-desk restore + "ai/offline" badge.
+  const [generated, setGenerated] = useState<Record<string, { variant: PostVariant; source: 'ai' | 'offline' }>>({});
+  const [generating, setGenerating] = useState<Record<string, boolean>>({});
+  const [tone, setTone] = useState<'neutral' | 'professional' | 'casual'>('neutral');
+  const [language, setLanguage] = useState<'keep' | 'english' | 'vietnamese'>('keep');
   const [time, setTime] = useState(dayjs().add(1, 'hour').minute(0).format('YYYY-MM-DDTHH:mm'));
   const [notes, setNotes] = useState('');
 
@@ -95,6 +100,40 @@ export function ComposePage() {
   const prunedVariants = Object.fromEntries(
     Object.entries(variants).filter(([id]) => accountIds.includes(id)),
   );
+
+  /** Generate one desk's adapted draft — saved + inline stories both work. */
+  const generateFor = async (accountId: string) => {
+    setGenerating((p) => ({ ...p, [accountId]: true }));
+    try {
+      const res = await api.generateVariant({
+        account_id: accountId,
+        ...(articleId && !creatingNew
+          ? { article_id: articleId }
+          : {
+            article: {
+              title: nTitle.trim(), body: nBody.trim(), link_url: nLink.trim(),
+              images: nImages.split('\n').map((u) => u.trim()).filter(Boolean),
+            },
+          }),
+        tone,
+        language,
+      });
+      setGenerated((p) => ({ ...p, [accountId]: { variant: res.variant, source: res.source } }));
+      setVariants((p) => ({ ...p, [accountId]: { ...p[accountId], ...res.variant } }));
+      if (res.source === 'offline') {
+        toast.push({ tone: 'info', title: 'Offline draft', description: 'No AI provider configured — the draft reshapes your story deterministically.' });
+      }
+    } catch (e) {
+      toast.push({ tone: 'error', title: 'Generate failed', description: e instanceof Error ? e.message : 'unknown_error' });
+    } finally {
+      setGenerating((p) => ({ ...p, [accountId]: false }));
+    }
+  };
+
+  const restoreGenerated = (accountId: string) => {
+    const g = generated[accountId];
+    if (g) setVariants((p) => ({ ...p, [accountId]: { ...g.variant } }));
+  };
 
   const errors: string[] = [];
   if (!articleId && !creatingNew) errors.push('Select or write a story');
@@ -275,6 +314,31 @@ export function ComposePage() {
           <p className="text-sm text-ink-muted dark:text-stone-400">Select desks above — each gets its own editable copy.</p>
         ) : (
           <div className="space-y-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <Field label="Tone">
+                <select className="input !w-auto" value={tone} onChange={(e) => setTone(e.target.value as typeof tone)} aria-label="Generation tone">
+                  <option value="neutral">Neutral</option>
+                  <option value="professional">Professional</option>
+                  <option value="casual">Casual</option>
+                </select>
+              </Field>
+              <Field label="Language">
+                <select className="input !w-auto" value={language} onChange={(e) => setLanguage(e.target.value as typeof language)} aria-label="Generation language">
+                  <option value="keep">Keep original</option>
+                  <option value="english">English</option>
+                  <option value="vietnamese">Vietnamese</option>
+                </select>
+              </Field>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={selectedAccounts.some((a) => generating[a.id])}
+                onClick={() => { for (const a of selectedAccounts) void generateFor(a.id); }}
+                title="Draft an adapted copy for every selected desk"
+              >
+                Generate for all desks
+              </Button>
+            </div>
             <Field
               label="Shared deck (optional)"
               hint="fallback copy for every desk — each copy below can override it"
@@ -289,8 +353,13 @@ export function ComposePage() {
                   article={storyShape}
                   caption={caption}
                   variant={prunedVariants[a.id]}
+                  generated={generated[a.id]?.variant}
+                  generatedSource={generated[a.id]?.source}
+                  generating={generating[a.id]}
                   onChange={patchVariant}
                   onReset={resetVariant}
+                  onGenerate={(id) => void generateFor(id)}
+                  onRestoreGenerated={restoreGenerated}
                 />
               ))}
             </div>

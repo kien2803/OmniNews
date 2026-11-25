@@ -9,3 +9,9 @@ WEB_ORIGIN=http://localhost:5173
 # THREADS_APP_ID= / THREADS_APP_SECRET=
 # REDDIT_CLIENT_ID= / REDDIT_CLIENT_SECRET= / REDDIT_USER_AGENT=
 # X_CLIENT_ID= / X_CLIENT_SECRET=
+
+# AI repurposing (optional — unset → deterministic offline drafter):
+# AI_PROVIDER=anthropic        # 'anthropic' | 'openai'
+# AI_API_KEY=sk-...            # server-side only, never exposed to the SPA
+# AI_MODEL=claude-haiku-4-5-20251001   # optional override
+# AI_BASE_URL=https://api.openai.com   # OpenAI-compatible endpoint

@@ -389,6 +389,14 @@ export const api = {
   syncChannelPosts: (id: string) =>
     req<ChannelPostSyncResponse>(`/accounts/${id}/posts/sync`, { method: 'POST', body: '' }),
 
+  generateVariant: (body: {
+    article_id?: string;
+    article?: { title?: string; body?: string; link_url?: string; images?: string[] };
+    account_id: string;
+    tone?: 'neutral' | 'professional' | 'casual';
+    language?: 'keep' | 'english' | 'vietnamese';
+  }) => req<GenerateResponse>('/generate', { method: 'POST', body: JSON.stringify(body) }),
+
   analytics: (accountId?: string, range?: { from?: number; to?: number }) => {
     const p = new URLSearchParams();
     if (accountId) p.set('account_id', accountId);
@@ -433,6 +441,13 @@ export interface UpdateScheduleInput {
   notes?: string | null;
   /** Promote a draft to pending — requires scheduled_at. */
   schedule?: boolean;
+}
+
+export interface GenerateResponse {
+  variant: PostVariant;
+  source: 'ai' | 'offline';
+  model?: string;
+  validation: { errors: Array<{ code: string; message: string }>; warnings: Array<{ code: string; message: string }> };
 }
 
 export interface DashboardCounts {
